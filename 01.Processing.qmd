@@ -1,0 +1,207 @@
+---
+eval: false
+engine: knitr
+---
+
+# Processing of high-throughput sequencing data
+
+## Datasets
+
+The following datasets were processed: 
+
+- WT S288c: Genome reference: `~/genomes/S288c/S288c.fa` & `~/genomes/S288c/S288c.gtf` (Ensembl v. 104, R64-1-1):
+
+    - Cal. ChIP Scc1: `CH224` (inp. `CH225`) + `CH226` (inp. `CH227`)
+
+- W303 + Mmmyco: Genome reference: `~/genomes/W303_Mmmyco/W303_Mmmyco.fa` & `~/genomes/W303_Mmmyco/W303_Mmmyco.gff3` 
+
+    - HiC G1: `CH02` ; HiC Wapl: `CH198`
+    - H3: `CH406` (inp. `CH408`) + `CH407` (inp. `CH409`)
+    - H2A: `CH404` (inp. `CH408`) + `CH405` (inp. `CH409`)
+    - ChIP PolII: `CH51` (inp. `CH54`) & `CH102` (inp. `CH105`)
+    - ChIP Sir3: `CH380` (inp. `CH385`)
+    - Cal. ChIP Scc1: `CH35` (inp. `CH38`)
+    - RNA: `AB4` + `AB5` + `AB6`
+    - MNase:
+      - `LM149`: MNase for **5 min**
+      - `LM150`: MNase for **10 min**
+      - `LM152`: MNase for **20 min**
+      - `LM153`: MNase for **40 min**
+      - `LM154`: MNase for **60 min**
+
+- S288c + Mmpneumo: Genome reference: `~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa` & `~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf` 
+
+    - HiC G1: `CH210` ; HiC Wapl: `CH197`
+    - H3: `CH157` (inp. `CH159`) + `CH367` (inp. `CH371`)
+    - H2A: `CH366` (inp. `CH370`)
+    - ChIP PolII: `CH154` (inp. `CH155`)
+    - Cal. ChIP Scc1: `CH219` (inp. `CH220`) 
+    - RNA: `CH_RNA_pneumo_1` + `CH_RNA_pneumo_2` + `CH_RNA_pneumo_3`
+    - MNase:
+      - `LM162`: MNase for **5 min**
+      - `LM163`: MNase for **10 min**
+      - `LM165`: MNase for **20 min**
+      - `LM166`: MNase for **40 min**
+      - `LM167`: MNase for **60 min**
+
+- W303 + fused Mmmyco: Genome reference: `~/genomes/W303_chrXVI-Mmmyco/W303_chrXVI-Mmmyco.fa` & `~/genomes/W303_chrXVI-Mmmyco/W303_chrXVI-Mmmyco.gtf`
+
+    - HiC G2: `LM34` ; HiC G1: `LM33`
+    - Cal. ChIP Scc1: `LM46` (inp. `LM45`)
+
+- W303 + fused Mmmyco with flipped locus: Genome reference: `~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa`
+
+    - HiC G2: `LM58` ; HiC G1: `LM62`
+    - Cal. ChIP Scc1: `LM65` (inp. `LM64`)
+    - ChIP PolII: `LM80` (inp. `LM81`)
+
+- W303 + fused Mmmyco with double flipped locus: Genome reference: `~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa`
+
+    - HiC G2: `LM59` ; HiC G1: `LM63`
+    - Cal. ChIP Scc1: `LM67` (inp. `LM66`)
+    - ChIP PolII: `LM82` (inp. `LM83`)
+
+- W303 + fused Mmmyco with translocated locus on chr.13
+    
+    - HiC G2: `LM119` ; HiC G1: `LM122`
+
+## Genome regferences 
+
+Genome references (fasta files and gene models) are provided as a [Zenodo archive](https://zenodo.org/record/7198985). 
+
+## Processing
+
+Files were processed with [`tinyMapper` v`0.11.6`-`0.12.1`](https://github.com/js2264/tinyMapper).
+
+```{sh}
+#| eval: false
+
+BASEDIR=/data/SynChrs_MNase-RNAseq-ChIPseq-HiC/data/
+
+## WT
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH224 --input "${BASEDIR}"/ChIP/CH225 --genome ~/genomes/S288c/S288c --output data/WT/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH226 --input "${BASEDIR}"/ChIP/CH227 --genome ~/genomes/S288c/S288c --output data/WT/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+
+## W303 + Mmmyco
+tinyMapper.sh --mode HiC --sample "${BASEDIR}"/HiC/CH02 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/HiC --threads 16
+tinyMapper.sh --mode HiC --sample "${BASEDIR}"/HiC/CH198 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/HiC --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH51 --input "${BASEDIR}"/ChIP/CH54 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH102 --input "${BASEDIR}"/ChIP/CH105 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH35 --input "${BASEDIR}"/ChIP/CH38 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH404 --input "${BASEDIR}"/ChIP/CH408 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH405 --input "${BASEDIR}"/ChIP/CH409 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH406 --input "${BASEDIR}"/ChIP/CH408 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH407 --input "${BASEDIR}"/ChIP/CH409 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH380 --input "${BASEDIR}"/ChIP/CH385 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/ChIP --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/AB4 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/RNA --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/AB5 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/RNA --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/AB6 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --output data/W303_Mmmyco/RNA --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM149 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --blacklist ~/genomes/W303_Mmmyco/W303_Mmmyco.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM150 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --blacklist ~/genomes/W303_Mmmyco/W303_Mmmyco.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM152 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --blacklist ~/genomes/W303_Mmmyco/W303_Mmmyco.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM153 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --blacklist ~/genomes/W303_Mmmyco/W303_Mmmyco.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM154 --genome ~/genomes/W303_Mmmyco/W303_Mmmyco --blacklist ~/genomes/W303_Mmmyco/W303_Mmmyco.blacklist.bed --output data/MNase --threads 16
+
+## S288c + Mmpneumo
+tinyMapper.sh --mode HiC --sample "${BASEDIR}"/HiC/C210 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/HiC --threads 16
+tinyMapper.sh --mode HiC --sample "${BASEDIR}"/HiC/CH197 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/HiC --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH154 --input "${BASEDIR}"/ChIP/CH155 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH219 --input "${BASEDIR}"/ChIP/CH220 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH157 --input "${BASEDIR}"/ChIP/CH159 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH367 --input "${BASEDIR}"/ChIP/CH371 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/ChIP --threads 16
+tinyMapper.sh --mode ChIP --sample "${BASEDIR}"/ChIP/CH366 --input "${BASEDIR}"/ChIP/CH370 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/ChIP --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/CHR_Pneumo1_nvq --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/RNA --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/CHR_Pneumo2_nvq --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/RNA --threads 16
+tinyMapper.sh --mode RNA --sample "${BASEDIR}"/RNA/CHR_Pneumo3_nvq --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --output data/S288c_Mpneumo/RNA --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM162 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --blacklist ~/genomes/S288c_Mpneumo/S288c_Mpneumo.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM163 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --blacklist ~/genomes/S288c_Mpneumo/S288c_Mpneumo.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM165 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --blacklist ~/genomes/S288c_Mpneumo/S288c_Mpneumo.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM166 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --blacklist ~/genomes/S288c_Mpneumo/S288c_Mpneumo.blacklist.bed --output data/MNase --threads 16
+tinyMapper.sh --mode MNase --sample data/reads/trimmed/LM167 --genome ~/genomes/S288c_Mpneumo/S288c_Mpneumo --blacklist ~/genomes/S288c_Mpneumo/S288c_Mpneumo.blacklist.bed --output data/MNase --threads 16
+
+## W303 + fused Mmmyco
+tinyMapper.sh --mode HiC --sample data/fastq/LM34 --genome ~/genomes/W303_chrXVI-Mmmyco/W303_chrXVI-Mmmyco --output data/W303_chrXVI-Mmmyco/HiC --threads 16
+tinyMapper.sh --mode HiC --sample data/fastq/LM33 --genome ~/genomes/W303_chrXVI-Mmmyco/W303_chrXVI-Mmmyco --output data/W303_chrXVI-Mmmyco/HiC --threads 16
+tinyMapper.sh --mode ChIP --sample data/fastq/LM46 --input data/fastq/LM45 --genome ~/genomes/W303_chrXVI-Mmmyco/W303_chrXVI-Mmmyco --output data/W303_chrXVI-Mmmyco/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+
+## W303 + fused Mmmyco with flipped locus
+tinyMapper.sh --mode HiC --sample data/fastq/LM58 --genome ~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb --output data/W303_chrXVI-Mmmyco_inv870kb/HiC --threads 16
+tinyMapper.sh --mode HiC --sample data/fastq/LM62 --genome ~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb --output data/W303_chrXVI-Mmmyco_inv870kb/HiC --threads 16
+tinyMapper.sh --mode ChIP --sample data/fastq/LM65 --input data/fastq/LM64 --genome ~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb --output data/W303_chrXVI-Mmmyco_inv870kb/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+tinyMapper.sh --mode ChIP --sample data/fastq/LM80 --input data/fastq/LM81 --genome ~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb --output data/W303_chrXVI-Mmmyco_inv870kb/ChIP --threads 16
+
+## W303 + fused Mmmyco with double flipped locus
+tinyMapper.sh --mode HiC --sample data/fastq/LM59 --genome ~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv --output data/W303_chrXVI-Mmmyco_dbl-inv/HiC --threads 16
+tinyMapper.sh --mode HiC --sample data/fastq/LM63 --genome ~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv --output data/W303_chrXVI-Mmmyco_dbl-inv/HiC --threads 16
+tinyMapper.sh --mode ChIP --sample data/fastq/LM67 --input data/fastq/LM66 --genome ~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv --output data/W303_chrXVI-Mmmyco_dbl-inv/ChIP --calibration ~/genomes/CBS138/CBS138 --threads 16
+tinyMapper.sh --mode ChIP --sample data/fastq/LM82 --input data/fastq/LM83 --genome ~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv --output data/W303_chrXVI-Mmmyco_dbl-inv/ChIP --threads 16
+
+## W303 + fused Mmmyco with translocated locus on chr13
+tinyMapper.sh --mode HiC --sample data/LM119 --genome ~/genomes/W303_chrXVI-Mmmyco-XIII/W303_chrXVI-Mmmyco-XIII_flipped --output data/LM119 --threads 16
+tinyMapper.sh --mode HiC --sample data/LM122 --genome ~/genomes/W303_chrXVI-Mmmyco-XIII/W303_chrXVI-Mmmyco-XIII_flipped --output data/LM122 --threads 16
+```
+
+## MNase nucleosome tracks 
+
+### Import fragments 
+
+```{r}
+library(tidyverse)
+library(rtracklayer)
+library(Rsamtools)
+library(plyranges)
+
+## -- Import and filter all fragments
+bams <- BamFileList(c(
+    myco_t05 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM149/LM149^mapped_W303_Mmmyco^filtered^K0DVZV.bam'), 
+    myco_t10 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM150/LM150^mapped_W303_Mmmyco^filtered^HSD10W.bam'), 
+    myco_t20 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM152/LM152^mapped_W303_Mmmyco^filtered^LYVCPG.bam'), 
+    myco_t40 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM153/LM153^mapped_W303_Mmmyco^filtered^XUIZ7U.bam'), 
+    myco_t60 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM154/LM154^mapped_W303_Mmmyco^filtered^N6MQ7Y.bam'),
+
+    pneumo_t05 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM162/LM162^mapped_S288c_Mpneumo^filtered^PHLPTK.bam'),
+    pneumo_t10 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM163/LM163^mapped_S288c_Mpneumo^filtered^71OU62.bam'),
+    pneumo_t20 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM165/LM165^mapped_S288c_Mpneumo^filtered^7BDFMM.bam'),
+    pneumo_t40 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM166/LM166^mapped_S288c_Mpneumo^filtered^UEVKWW.bam'),
+    pneumo_t60 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM167/LM167^mapped_S288c_Mpneumo^filtered^LXMW7J.bam')
+), asMates = FALSE)
+param <- ScanBamParam(
+    flag=scanBamFlag(
+        isPaired = TRUE,
+        isProperPair = TRUE,
+        isDuplicate = FALSE,
+        isSecondaryAlignment = FALSE
+    ), 
+    mapqFilter = 1, 
+    what = c("mapq", "isize")
+)
+frags <- imap(bams, ~ {
+    print(.y)
+    x <- GenomicAlignments::readGAlignmentPairs(.x, param = param) |> 
+        as('GRanges') |> 
+        filter_by_non_overlaps(GRanges(c('chrXII:481905-499631', 'XII:458999-461000')))
+    return(x)
+})
+```
+
+### Generating nucleosome tracks 
+
+```{r}
+## -- Myco 
+nuc_frags_myco <- frags[1:5] |> GRangesList() |> unlist()
+nuc_frags_myco <- filter(nuc_frags_myco, width < 165, width >= 130)
+export(nuc_frags_myco, 'nuc_frags_Myco-time-course.bed')
+nuc_cov_myco0 <- resize(nuc_frags_myco, width = 40, fix = 'center')
+nuc_cov_myco0 <- coverage(nuc_cov_myco0)
+nuc_cov_myco <- nuc_cov_myco0 / length(nuc_frags_myco) * 1e6
+export(nuc_cov_myco, 'nuc_cov_Myco-time-course.bw')
+
+## -- Pneumo 
+nuc_frags_pneumo <- frags[6:10] |> GRangesList() |> unlist()
+nuc_frags_pneumo <- filter(nuc_frags_pneumo, width < 165, width >= 130)
+export(nuc_frags_pneumo, 'nuc_frags_Pneumo-time-course.bed')
+nuc_cov_pneumo0 <- resize(nuc_frags_pneumo, width = 40, fix = 'center')
+nuc_cov_pneumo0 <- coverage(nuc_cov_pneumo0)
+nuc_cov_pneumo <- nuc_cov_pneumo0 / length(nuc_frags_pneumo) * 1e6
+export(nuc_cov_pneumo, 'nuc_cov_Pneumo-time-course.bw')
+```

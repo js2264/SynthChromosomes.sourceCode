@@ -1,0 +1,20 @@
+project:
+  type: book
+
+book:
+  title: Code and Software Submission Checklist for Manuscript `2023-01-00312B`
+  chapters:
+    - index.qmd
+    - 00.System-requirements.qmd
+    - 01.Processing.qmd
+    - 02.Analysis-Figure-01.qmd
+    - 03.Analysis-Figure-02.qmd
+    - 04.Analysis-Figure-03.qmd
+    - 05.Analysis-Figure-04.qmd
+    - 06.Analysis-Figure-05.qmd
+
+format:
+  html:
+    theme: cosmo
+    highlight-style: atom-one
+    toc: true

@@ -1,0 +1,1560 @@
+---
+eval: false
+engine: knitr
+---
+
+# Code for generating Figure 1 & Extended Data figures 
+
+## Importing libraries 
+
+```{r}
+library(purrr)
+library(GenomicRanges)
+library(GenomeInfoDb)
+library(Biostrings)
+library(plyranges)
+```
+
+## Figure 1
+
+### Panel 1a
+
+```{r}
+seqs <- list(
+    Mmmyco = '~/genomes/W303_Mmmyco/W303_Mmmyco.fa',
+    Mpneumo = '~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa'
+)|> map(Biostrings::readDNAStringSet)
+bins <- imap(seqs, ~ {
+    gr <- seqinfo(.x)
+    tiles <- tileGenome(gr, tilewidth = 1000, cut.last.tile.in.chrom = TRUE)
+    tiles$gc <- Biostrings::letterFrequency(.x[tiles], 'GC', as.prob = TRUE)
+    as.data.frame(tiles) |> as_tibble() |> mutate(genome = .y)
+}) |> list_rbind() |> filter(G.C > 0)
+p1 <- ggplot(bins |> filter(seqnames %in% c('chrXVI', 'Mmmyco', 'Mpneumo')), aes(x = G.C, fill = seqnames)) + 
+    geom_density() + 
+    theme_bw() + 
+    labs(x = "GC%", y = "# of 1kb bins") 
+```
+
+### Panel 1b 
+
+```{r}
+## --- Import tracks
+seq_pneumo <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+genome_pneumo <- GRanges(paste0(names(seq_pneumo) |> str_replace(' .*', ''), ':1-', lengths(seq_pneumo)))
+seqlengths(genome_pneumo) <- lengths(seq_pneumo)
+genes_pneumo <- import('~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf') |> 
+    filter(type == 'gene') |> 
+    filter(!seqnames %in% c('Mmmyco', 'Mpneumo'))
+mnase_pneumo <- import('~/Projects/20230517_Lea_MNase-timecourse/nuc_cov_Pneumo-time-course.bw', as = "Rle")
+h3_pneumo <- {{import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH157/CH157^mapped_S288c_Mpneumo^MGHI86.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH159/CH159^mapped_S288c_Mpneumo^MGHI86.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH367/CH367^mapped_S288c_Mpneumo^PCPOLZ.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH371/CH371^mapped_S288c_Mpneumo^PCPOLZ.CPM.bw', as = 'Rle')}} / 
+    2
+h3_pneumo <- log2(h3_pneumo)
+h2a_pneumo <- import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH366/CH366^mapped_S288c_Mpneumo^S0ZHT4.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH370/CH370^mapped_S288c_Mpneumo^S0ZHT4.CPM.bw', as = 'Rle')
+h2a_pneumo <- log2(h2a_pneumo)
+
+## --- Create plots
+gr_XVI <- GRanges("XVI:250486-260630")
+gr_bact <- GRanges("Mpneumo:710000-720000")
+
+p_pneumo <- cowplot::plot_grid(
+    # XVI
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(mnase_pneumo[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#575757') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('mnase @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 10)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(h2a_pneumo[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#0ba7af') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h2a @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1.5)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(h3_pneumo[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2587a4') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h3 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1.5)) + 
+        labs(x = NULL), 
+
+    # Pneumo
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(mnase_pneumo[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#575757') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('mnase @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 10)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(h2a_pneumo[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#0ba7af') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h2a @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1.5)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(h3_pneumo[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2587a4') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h3 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1.5)) + 
+        labs(x = NULL), 
+
+    ncol = 2, byrow = FALSE
+)
+```
+
+### Panel 1c
+
+```{r}
+## --- Import tracks
+seq_myco <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+genome_myco <- GRanges(paste0(names(seq_myco), ':1-', lengths(seq_myco)))
+seqlengths(genome_myco) <- lengths(seq_myco)
+genes_myco <- import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3') |> 
+    filter(type == 'gene') |> 
+    filter(!seqnames %in% c('Mmmyco', 'Mpneumo'))
+mnase_myco <- import('~/Projects/20230517_Lea_MNase-timecourse/nuc_cov_Myco-time-course.bw', as = "Rle")
+h3_myco <- {{import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH406/CH406^mapped_W303_Mmmyco^KDTEGO.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH408/CH408^mapped_W303_Mmmyco^KDTEGO.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH407/CH407^mapped_W303_Mmmyco^8S1VTX.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH409/CH409^mapped_W303_Mmmyco^8S1VTX.CPM.bw', as = 'Rle')}} / 
+    2
+h3_myco <- log2(h3_myco)
+h2a_myco <- {{import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH404/CH404^mapped_W303_Mmmyco^XOL0HV.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH408/CH408^mapped_W303_Mmmyco^XOL0HV.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH405/CH405^mapped_W303_Mmmyco^CXNJIS.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH409/CH409^mapped_W303_Mmmyco^CXNJIS.CPM.bw', as = 'Rle')}} / 
+    2
+h2a_myco <- log2(h2a_myco)
+
+## --- Create plots
+gr_XVI <- GRanges("chrXVI:250486-260630")
+gr_bact <- GRanges("Mmmyco:988904-998877")
+
+p_myco <- cowplot::plot_grid(
+    # XVI
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(mnase_myco[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#575757') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('mnase @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 10)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(h2a_myco[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#0ba7af') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h2a @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_XVI), end(gr_XVI), 1), 
+        score = as.vector(h3_myco[gr_XVI][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2587a4') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h3 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1)) + 
+        labs(x = NULL), 
+
+    # Myco
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(mnase_myco[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#575757') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('mnase @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 10)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(h2a_myco[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#0ba7af') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h2a @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1)) + 
+        labs(x = NULL), 
+    tibble(
+        coord = seq(start(gr_bact), end(gr_bact), 1), 
+        score = as.vector(h3_myco[gr_bact][[1]])
+    ) |>
+        mutate(score = slider::slide_dbl(score, .before = 10, .after = 10, mean)) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2587a4') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('h3 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-0.3, 1)) + 
+        labs(x = NULL), 
+
+    ncol = 2, byrow = FALSE
+)
+```
+
+### Panel 1d & 1e
+
+#### Mmyco 
+
+```{r}
+seq <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+genome <- GRanges(paste0(names(seq), ':1-', lengths(seq)))
+seqlengths(genome) <- lengths(seq)
+annots <- import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3')
+seqinfo(annots) <- seqinfo(genome)
+cols <- rev(RColorBrewer::brewer.pal(n = 9, name = 'YlOrRd'))
+nuc_cov_myco <- import('nuc_cov_Myco-time-course.bw', as = 'Rle')
+gbins_myco <- slidingWindows(genome, width = 147, step = 50) |> unlist()
+n_nucs <- length(gbins_myco)
+n_nucs_post <- n_nucs - 1
+i = 0
+while (n_nucs_post != n_nucs) {
+    print(i)
+    i = i + 1
+    n_nucs <- length(gbins_myco)
+    gbins_myco <- gbins_myco[gbins_myco %within% genome]
+    gbins_myco <- unique(shift(gbins_myco, which.max(nuc_cov_myco[gbins_myco]) - 73))
+    n_nucs_post <- length(gbins_myco)
+}
+gbins_myco$distance_to_next <- {lead(start(gbins_myco)) - end(gbins_myco)}
+gbins_myco <- gbins_myco[gbins_myco$distance_to_next > -1e3 & !is.na(gbins_myco$distance_to_next) & gbins_myco$distance_to_next < 1e3]
+gbins_myco$peak_signal <- mean(nuc_cov_myco[resize(gbins_myco, fix = 'center', width = 10)], na.rm = TRUE)
+gbins_myco$flanking_signal_left <- nuc_cov_myco[trim(flank_left(gbins_myco, 10))] |> mean(na.rm = TRUE)
+gbins_myco$flanking_signal_right <- nuc_cov_myco[trim(flank_right(gbins_myco, 10))] |> mean(na.rm = TRUE)
+gbins_myco$flanking_signal <- rowMeans(as.data.frame(mcols(gbins_myco)[, c("flanking_signal_left", "flanking_signal_right")]))
+gbins_myco$nuc_score <- gbins_myco$peak_signal / gbins_myco$flanking_signal
+gbins_myco$nuc_score[is.infinite(gbins_myco$nuc_score)] <- NA
+gbins_myco$group <- fct_rev(cut(gbins_myco$nuc_score, breaks = c(0, 5, 10, sort(gbins_myco$nuc_score, decreasing = TRUE)[6200], Inf)))
+gbins_myco$color <- rev(c("#BEBEBE", "#9ad0f4", "#ffae00", "#8B0000"))[gbins_myco$group]
+df <- as_tibble(gbins_myco) |> 
+    group_by(seqnames)
+df |> group_by(seqnames) |> summarize(mean = getmode(distance_to_next))
+p1 <- ggplot(df, aes(x = distance_to_next, group = seqnames, col = {seqnames == 'Mmmyco'})) + 
+    geom_density() + 
+    xlim(c(0, 100)) + 
+    geom_vline(xintercept = 15) + 
+    labs(col = "Bact. chr.")
+df <- imap_dfr(nuc_cov_myco, ~ {
+    print(.y)
+    .acf <- acf(as.vector(.x), lag.max = 1000, plot = FALSE) 
+    tibble(seqnames = .y, lag = .acf$lag[, , 1], acf = .acf$acf[, , 1])
+})
+p4 <- ggplot(df, aes(x = lag, y = acf, group = seqnames, col = {seqnames == 'Mmmyco'})) + 
+    geom_line() + 
+    labs(col = "Bact. chr.") +
+    ylim(c(-0.28, 0.65)) + 
+    xlim(c(0, 1000)) + 
+    geom_vline(xintercept = 169 + (159 * 0:10), linetype = 'solid') + 
+    geom_vline(xintercept = 169 + (176 * 0:10), linetype = 'dashed')
+p <- cowplot::plot_grid(p1, p4, nrow = 1)
+```
+
+#### Mpneumo 
+
+```{r}
+seq <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+genome <- GRanges(paste0(names(seq) |> str_replace(' .*', ''), ':1-', lengths(seq)))
+seqlengths(genome) <- lengths(seq)
+annots <- import('~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf')
+seqinfo(annots) <- seqinfo(genome)
+cols <- rev(RColorBrewer::brewer.pal(n = 9, name = 'YlOrRd'))
+nuc_cov_pneumo <- import('nuc_cov_Pneumo-time-course.bw', as = 'Rle')
+gbins_pneumo <- slidingWindows(genome, width = 147, step = 50) |> unlist()
+n_nucs <- length(gbins_pneumo)
+n_nucs_post <- n_nucs - 1
+i = 0
+while (n_nucs_post != n_nucs) {
+    print(n_nucs - n_nucs_post)
+    i = i + 1
+    n_nucs <- length(gbins_pneumo)
+    gbins_pneumo <- gbins_pneumo[gbins_pneumo %within% genome]
+    gbins_pneumo <- unique(shift(gbins_pneumo, which.max(nuc_cov_pneumo[gbins_pneumo]) - 73))
+    n_nucs_post <- length(gbins_pneumo)
+}
+gbins_pneumo$distance_to_next <- {lead(start(gbins_pneumo)) - end(gbins_pneumo)}
+gbins_pneumo <- gbins_pneumo[gbins_pneumo$distance_to_next > -1e3 & !is.na(gbins_pneumo$distance_to_next) & gbins_pneumo$distance_to_next < 1e3]
+gbins_pneumo$peak_signal <- mean(nuc_cov_pneumo[resize(gbins_pneumo, fix = 'center', width = 10)], na.rm = TRUE)
+gbins_pneumo$flanking_signal_left <- nuc_cov_pneumo[trim(flank_left(gbins_pneumo, 10)) |> mutate(start = ifelse( start < 1, 1, start))] |> mean(na.rm = TRUE)
+gbins_pneumo$flanking_signal_right <- nuc_cov_pneumo[trim(flank_right(gbins_pneumo, 10))] |> mean(na.rm = TRUE)
+gbins_pneumo$flanking_signal <- rowMeans(as.data.frame(mcols(gbins_pneumo)[, c("flanking_signal_left", "flanking_signal_right")]))
+gbins_pneumo$nuc_score <- gbins_pneumo$peak_signal / gbins_pneumo$flanking_signal
+gbins_pneumo$nuc_score[is.infinite(gbins_pneumo$nuc_score)] <- NA
+gbins_pneumo$group <- fct_rev(cut(gbins_pneumo$nuc_score, breaks = c(0, 5, 10, sort(gbins_pneumo$nuc_score, decreasing = TRUE)[6200], Inf)))
+gbins_pneumo$color <- rev(c("#BEBEBE", "#9ad0f4", "#ffae00", "#8B0000"))[gbins_pneumo$group]
+df <- as_tibble(gbins_pneumo) |> 
+    group_by(seqnames)
+df |> group_by(seqnames) |> summarize(mean = getmode(distance_to_next))
+p1 <- ggplot(df, aes(x = distance_to_next, group = seqnames, col = {seqnames == 'Mpneumo'})) + 
+    geom_density() + 
+    xlim(c(0, 100)) + 
+    geom_vline(xintercept = 14, color = 'red') + 
+    labs(col = "Bact. chr.")
+df <- imap_dfr(nuc_cov_pneumo, ~ {
+    .acf <- acf(as.vector(.x), lag.max = 1000, plot = FALSE) 
+    tibble(seqnames = .y, lag = .acf$lag[, , 1], acf = .acf$acf[, , 1])
+}) 
+p4 <- ggplot(df, aes(x = lag, y = acf, group = seqnames, col = {seqnames == 'Mpneumo'})) + 
+    geom_line() + 
+    labs(col = "Bact. chr.")+
+    ylim(c(-0.28, 0.65)) + 
+    xlim(c(0, 1000)) + 
+    geom_vline(xintercept = 166 + (160 * 0:10), linetype = 'solid') 
+    # geom_vline(xintercept = 172 * 1:10, linetype = 'dashed')
+
+p <- cowplot::plot_grid(p1, p4, nrow = 1)
+```
+
+### Panel 1f
+
+#### Mpneumo 
+
+```{r}
+## --- Import tracks
+seq_pneumo <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+genome_pneumo <- GRanges(paste0(names(seq_pneumo) |> str_replace(' .*', ''), ':1-', lengths(seq_pneumo)))
+seqlengths(genome_pneumo) <- lengths(seq_pneumo)
+
+scc1_pneumo <- import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH219/CH219^unmapped_CBS138^mapped_S288c_Mpneumo^EHEJFT.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH220/CH220^unmapped_CBS138^mapped_S288c_Mpneumo^EHEJFT.CPM.bw', as = 'Rle')
+# scc1_pneumo <- log2(scc1_pneumo)
+pol2_pneumo <- import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH154/CH154^mapped_S288c_Mpneumo^598366.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH155/CH155^mapped_S288c_Mpneumo^598366.CPM.bw', as = 'Rle')
+# pol2_pneumo <- log2(pol2_pneumo)
+GC_pneumo <- lengths(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')) %>%   
+    purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa'))) %>% 
+    tileGenome(tilewidth = 1) %>% 
+    unlist() %>% 
+    mutate(seq = Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')[.]) %>% 
+    mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+    group_by(seqnames) %>% 
+    mutate(GC_ave = slider::slide_mean(GC.G.C, before = 100/2, after = 100/2)) %>% 
+    coverage(weight = 'GC_ave') %>% 
+    setNames(str_replace(names(.), ' .*', ''))
+
+## --- Create plots
+
+BINWIDTH <- 200
+STEP <- 10
+gr_XVI <- GRanges("XVI:85000-145000")
+seqlevels(gr_XVI) <- seqlevels(scc1_pneumo)
+seqinfo(gr_XVI) <- seqinfo(scc1_pneumo)
+gr_bact <- GRanges("Mpneumo:351000-411000")
+seqlevels(gr_bact) <- seqlevels(scc1_pneumo)
+seqinfo(gr_bact) <- seqinfo(scc1_pneumo)
+
+p_pneumo <- cowplot::plot_grid(
+    # XVI
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = scc1_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#EC2027') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('scc1 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = pol2_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#34B55B') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('pol2 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = GC_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line(linewidth = 0.5, col = '#5c5c5c') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0.10, 0.55)) + 
+        labs(x = NULL), 
+
+    # Pneumo
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = scc1_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#EC2027') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('scc1 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = pol2_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#34B55B') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('pol2 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = GC_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line(linewidth = 0.5, col = '#5c5c5c') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0.10, 0.55)) + 
+        labs(x = NULL), 
+
+    ncol = 2, byrow = FALSE
+)
+```
+
+#### Mmyco 
+
+```{r}
+seq_myco <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+genome_myco <- GRanges(paste0(names(seq_myco), ':1-', lengths(seq_myco)))
+seqlengths(genome_myco) <- lengths(seq_myco)
+
+scc1_myco <- import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH35/CH35^unmapped_CBS138^mapped_W303_Mmmyco^DTAKMF.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH38/CH38^unmapped_CBS138^mapped_W303_Mmmyco^DTAKMF.CPM.bw', as = 'Rle')
+pol2_myco <- {{import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH51/CH51^mapped_W303_Mmmyco^Y9CC89.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH54/CH54^mapped_W303_Mmmyco^Y9CC89.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH102/CH102^mapped_W303_Mmmyco^2FVQO3.CPM.bw', as = 'Rle') / import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH105/CH105^mapped_W303_Mmmyco^2FVQO3.CPM.bw', as = 'Rle')}} / 
+    2
+GC_myco <- lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+    purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa'))) %>% 
+    tileGenome(tilewidth = 1) %>% 
+    unlist() %>% 
+    mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')[.]) %>% 
+    mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+    group_by(seqnames) %>% 
+    mutate(GC_ave = slider::slide_mean(GC.G.C, before = 100/2, after = 100/2)) %>% 
+    coverage(weight = 'GC_ave') %>% 
+    setNames(str_replace(names(.), ' .*', ''))
+
+## --- Create plots
+
+BINWIDTH <- 200
+STEP <- 10
+gr_XVI <- GRanges("chrXVI:85000-145000")
+seqlevels(gr_XVI) <- seqlevels(scc1_myco)
+seqinfo(gr_XVI) <- seqinfo(scc1_myco)
+gr_bact <- GRanges("Mmmyco:575000-635000")
+seqlevels(gr_bact) <- seqlevels(scc1_myco)
+seqinfo(gr_bact) <- seqinfo(scc1_myco)
+
+p_myco <- cowplot::plot_grid(
+    # XVI
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = scc1_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#EC2027') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('scc1 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = pol2_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#34B55B') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('pol2 @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_XVI, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = GC_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line(linewidth = 0.5, col = '#5c5c5c') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0.10, 0.55)) + 
+        labs(x = NULL), 
+
+    # Myco
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = scc1_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#EC2027') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('scc1 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = pol2_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#34B55B') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('pol2 @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 8)) + 
+        labs(x = NULL), 
+    plyranges::slide_ranges(gr_bact, width = BINWIDTH, step = STEP) |> 
+        binnedAverage(bins = _, numvar = GC_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line(linewidth = 0.5, col = '#5c5c5c') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0.10, 0.55)) + 
+        labs(x = NULL), 
+
+    ncol = 2, byrow = FALSE
+)
+```
+
+## Extended Data Figure 1
+
+### Panel S1a
+
+#### Mmyco
+
+```{r}
+seq <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+obs_nuc <- seq |> Biostrings::oligonucleotideFrequency(width = 1)
+obs_dinuc <- seq |> Biostrings::oligonucleotideFrequency(width = 2)
+rownames(obs_nuc) <- names(seq)
+rownames(obs_dinuc) <- names(seq)
+F_obs_nuc <- obs_nuc / rowSums(obs_nuc) 
+rownames(F_obs_nuc) <- names(seq)
+F_obs_dinuc <- obs_dinuc / rowSums(obs_dinuc) 
+rownames(F_obs_dinuc) <- names(seq)
+pstars_myco <- map_dfr(colnames(F_obs_dinuc), function(dinuc) {
+    map_dfr(names(seq), function(chr) {
+        dinuc_revcomp <- as.character(reverseComplement(DNAString(dinuc)))
+        nuc1 <- substr(dinuc, 1, 1)
+        nuc2 <- substr(dinuc, 2, 2)
+        nuc1_revcomp <- as.character(reverseComplement(DNAString(nuc1)))
+        nuc2_revcomp <- as.character(reverseComplement(DNAString(nuc2)))
+        s = 2 * ( F_obs_dinuc[chr, dinuc] + F_obs_dinuc[chr, dinuc_revcomp] ) / ( (F_obs_nuc[chr, nuc1] + F_obs_nuc[chr, nuc1_revcomp]) * (F_obs_nuc[chr, nuc2] + F_obs_nuc[chr, nuc2_revcomp]) )
+        tibble(
+            chr = chr, 
+            dinuc = dinuc, 
+            pstar = s
+        )
+    })
+})
+p <- pstars_myco |> 
+    separate(dinuc, into = c('x', 'y'), sep = c(1, 2)) |> 
+    ggplot(aes(x, y, fill = log2(pstar))) + 
+    geom_tile() + 
+    scale_fill_distiller(palette = 'RdBu', direction = -1, limits = c(log2(1 / 1.25), log2(1 * 1.25)), oob = scales::oob_squish) + 
+    facet_wrap(~ chr) + 
+    coord_fixed()
+```
+
+#### Mpneumo 
+
+```{r}
+seq <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+names(seq) <- str_replace(names(seq), ' .*', '')
+seq <- seq[names(seq) != 'Mito']
+obs_nuc <- seq |> Biostrings::oligonucleotideFrequency(width = 1)
+obs_dinuc <- seq |> Biostrings::oligonucleotideFrequency(width = 2)
+rownames(obs_nuc) <- names(seq)
+rownames(obs_dinuc) <- names(seq)
+F_obs_nuc <- obs_nuc / rowSums(obs_nuc) 
+rownames(F_obs_nuc) <- names(seq)
+F_obs_dinuc <- obs_dinuc / rowSums(obs_dinuc) 
+rownames(F_obs_dinuc) <- names(seq)
+pstars_pneumo <- map_dfr(colnames(F_obs_dinuc), function(dinuc) {
+    map_dfr(names(seq), function(chr) {
+        dinuc_revcomp <- as.character(reverseComplement(DNAString(dinuc)))
+        nuc1 <- substr(dinuc, 1, 1)
+        nuc2 <- substr(dinuc, 2, 2)
+        nuc1_revcomp <- as.character(reverseComplement(DNAString(nuc1)))
+        nuc2_revcomp <- as.character(reverseComplement(DNAString(nuc2)))
+        s = 2 * ( F_obs_dinuc[chr, dinuc] + F_obs_dinuc[chr, dinuc_revcomp] ) / ( (F_obs_nuc[chr, nuc1] + F_obs_nuc[chr, nuc1_revcomp]) * (F_obs_nuc[chr, nuc2] + F_obs_nuc[chr, nuc2_revcomp]) )
+        tibble(
+            chr = chr, 
+            dinuc = dinuc, 
+            pstar = s
+        )
+    })
+})
+p <- pstars_pneumo |> 
+    separate(dinuc, into = c('x', 'y'), sep = c(1, 2)) |> 
+    ggplot(aes(x, y, fill = log2(pstar))) + 
+    geom_tile() + 
+    scale_fill_distiller(palette = 'RdBu', direction = -1, limits = c(log2(1 / 1.25), log2(1 * 1.25)), oob = scales::oob_squish) + 
+    facet_wrap(~ chr) + 
+    coord_fixed()
+```
+
+## Extended Data Figure 2
+
+### Panel S2a
+
+```{r}
+bin <- 100
+gr <- rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/MNase/tracks/SRR3193263/SRR3193263^mapped_S288c^filtered^130-200^BADI46.130-200.CPM.bw') %>% as_tibble() %>% group_by(seqnames) %>% slice_max(end) %>% ungroup() %>% slice_head(n = 16) %>% mutate(start = 1, end = end - 50000) %>% makeGRangesFromDataFrame() %>% 
+    tile(., width = bin) %>% 
+    unlist()
+
+binned_tracks <- list(
+
+    # ----------- W303 + Mmmyco (mapped over S288c)
+    'PolII - Mmmyco (rep1)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH51/CH51^mapped_S288c^CLKQDY.vs-CH54.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'PolII - Mmmyco (rep2)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH102/CH102^mapped_S288c^M75ZQA.vs-CH105.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'Scc1 - Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH35/CH35^unmapped_CBS138^mapped_S288c^F1KQ9J.vs-CH38.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'H3 - Mmmyco (rep1)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH406/CH406^mapped_S288c^EXWZ5C.vs-CH408.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'H3 - Mmmyco (rep2)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH407/CH407^mapped_S288c^SU9T4N.vs-CH409.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'H2A - Mmmyco (rep1)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH404/CH404^mapped_S288c^YGJ7BT.vs-CH408.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    'H2A - Mmmyco (rep2)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH405/CH405^mapped_S288c^PYQZ9J.vs-CH409.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mmmyco (5')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM149/LM149^mapped_S288c^filtered^130-200^USS9N2.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mmmyco (10')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM150/LM150^mapped_S288c^filtered^130-200^XA3HI0.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mmmyco (20')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM152/LM152^mapped_S288c^filtered^130-200^A5S96Q.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mmmyco (40')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM153/LM153^mapped_S288c^filtered^130-200^CHJ3MZ.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mmmyco (60')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM154/LM154^mapped_S288c^filtered^130-200^J802Q0.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+
+    # ----------- S288c + Mmpneumo  
+    'PolII - Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH154/CH154^mapped_S288c_Mpneumo^598366.vs-CH155.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE),
+    'Scc1 - Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH219/CH219^unmapped_CBS138^mapped_S288c_Mpneumo^EHEJFT.vs-CH220.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE),
+    'H3 - Mpneumo (rep1)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH157/CH157^mapped_S288c^1DXHH9.vs-CH159.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE),
+    'H3 - Mpneumo (rep2)' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH367/CH367^mapped_S288c^08OVI9.vs-CH371.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE),
+    'H2A - Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH366/CH366^mapped_S288c^676QHT.vs-CH370.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mpneumo (5')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM162/LM162^mapped_S288c_Mpneumo^filtered^130-200^PHLPTK.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mpneumo (10')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM163/LM163^mapped_S288c_Mpneumo^filtered^130-200^71OU62.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mpneumo (20')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM165/LM165^mapped_S288c_Mpneumo^filtered^130-200^7BDFMM.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mpneumo (40')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM166/LM166^mapped_S288c_Mpneumo^filtered^130-200^UEVKWW.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE), 
+    "MNase - Mpneumo (60')" = rtracklayer::import('~/Projects/20230517_Lea_MNase-timecourse/data/MNase/tracks/LM167/LM167^mapped_S288c_Mpneumo^filtered^130-200^LXMW7J.130-200.CPM.bw', as = 'Rle') %>% 
+        '['(gr) %>% 
+        mean(na.rm = TRUE)
+
+)
+df <- bind_cols(binned_tracks)
+d <- df %>% 
+    cor(method = 'pearson') %>% 
+    as_tibble(rownames = 'metric1') %>%
+    pivot_longer(-metric1, names_to = 'metric2', values_to = 'cor') 
+d[d$metric1 == d$metric2, ]$cor = NA
+p <- ggplot(d, aes(x = metric1, y = metric2, fill = cor, size = abs(cor))) + 
+    geom_point(pch = 22) + 
+    scale_fill_distiller(palette = 'RdBu', type = 'seq', limits = c(-1, 1), oob = scales::oob_squish) + 
+    theme(aspect.ratio = 1, panel.background = element_blank()) + 
+    guides(x = guide_axis(angle = 90))
+```
+
+### Panel S2d
+
+```{r}
+bams <- BamFileList(c(
+    myco_t05 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM149/LM149^mapped_W303_Mmmyco^filtered^K0DVZV.bam'), 
+    myco_t10 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM150/LM150^mapped_W303_Mmmyco^filtered^HSD10W.bam'), 
+    myco_t20 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM152/LM152^mapped_W303_Mmmyco^filtered^LYVCPG.bam'), 
+    myco_t40 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM153/LM153^mapped_W303_Mmmyco^filtered^XUIZ7U.bam'), 
+    myco_t60 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM154/LM154^mapped_W303_Mmmyco^filtered^N6MQ7Y.bam'),
+
+    pneumo_t05 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM162/LM162^mapped_S288c_Mpneumo^filtered^PHLPTK.bam'),
+    pneumo_t10 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM163/LM163^mapped_S288c_Mpneumo^filtered^71OU62.bam'),
+    pneumo_t20 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM165/LM165^mapped_S288c_Mpneumo^filtered^7BDFMM.bam'),
+    pneumo_t40 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM166/LM166^mapped_S288c_Mpneumo^filtered^UEVKWW.bam'),
+    pneumo_t60 = BamFile('/home/rsg/Projects/20230517_Lea_MNase-timecourse/data/MNase/bam/genome/LM167/LM167^mapped_S288c_Mpneumo^filtered^LXMW7J.bam')
+), asMates = FALSE)
+param <- ScanBamParam(
+    flag=scanBamFlag(
+        isPaired = TRUE,
+        isProperPair = TRUE,
+        isDuplicate = FALSE,
+        isSecondaryAlignment = FALSE
+    ), 
+    mapqFilter = 1, 
+    what = c("mapq", "isize")
+)
+frags <- imap(bams, ~ {
+    print(.y)
+    x <- GenomicAlignments::readGAlignmentPairs(.x, param = param) |> 
+        as('GRanges') |> 
+        filter_by_non_overlaps(GRanges(c('chrXII:481905-499631', 'XII:458999-461000')))
+    return(x)
+})
+frags_lengths <- imap_dfr(frags, ~ tibble(
+    sample = .y, 
+    strain = str_replace(.y, '_.*', ''), 
+    timepoint = str_replace(.y, '.*_', ''), 
+    chr = as.vector(seqnames(.x)), 
+    isize = width(.x)  
+)) |> group_by(sample, chr)
+p <- frags_lengths |> 
+    group_by(strain, timepoint, chr) |>
+    ggplot(aes(x = isize, after_stat(density), col = timepoint)) + 
+    geom_freqpoly(binwidth = 1) + 
+    xlim(c(30, 250)) + 
+    scale_y_continuous(labels = scales::percent) +
+    theme_bw() + 
+    facet_wrap(~ strain) + 
+    labs(x = 'Fragment length', y = "% of fragments")
+
+```
+
+### Panel S2c
+
+```{r}
+myco_seq <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+myco_genome <- GRanges(paste0(names(myco_seq), ':1-', lengths(myco_seq)))
+seqlengths(myco_genome) <- lengths(myco_seq)
+pneumo_seq <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+pneumo_genome <- GRanges(paste0(str_replace(names(pneumo_seq), ' .*', ''), ':1-', lengths(pneumo_seq)))
+seqlengths(pneumo_genome) <- lengths(pneumo_seq)
+genomes <- rbind(as_tibble(myco_genome), as_tibble(pneumo_genome))
+df <- frags_lengths |> 
+    filter(isize <= 165, chr != 'Mito', timepoint != 't15') |> 
+    group_by(strain, timepoint, chr) |>
+    summarize(
+        chr_frags = dplyr::n(), 
+        nuc_frags = sum(isize >= 130 & isize <= 165)
+    ) |> 
+    ungroup() %>%
+    mutate(chr_size = left_join(x = ., y = genomes, by = c(chr = 'seqnames'))$width) |>
+    group_by(strain, timepoint) |> 
+    mutate(total_frags = sum(chr_frags), pct = {nuc_frags / total_frags} / chr_size * 1e6) |> 
+    group_by(strain, chr) |>
+    group_modify( ~ {
+        mutate(.x, pct_normalized = pct / .x$pct[.x$timepoint == 't05'])
+    })
+p <- ggplot(df, aes(x = timepoint, pct_normalized, group = chr, col = chr %in% c("Mmmyco", "Mpneumo"))) + 
+    geom_line() + 
+    scale_colour_manual(values = c('black', '#4B93BF')) +
+    theme_bw() + 
+    facet_grid(~ strain, scales = 'free') + 
+    theme(legend.position = 'none') + 
+    labs(
+        x = "Timepoint", 
+        y = "Proportion of nucleosomal reads (compared to t = 05')"
+    )
+```
+
+### Panel S2e
+
+```{r}
+BIN = 147
+library(periodicDNA)
+library(BSgenome.Scerevisiae.UCSC.sacCer3)
+library(TxDb.Scerevisiae.UCSC.sacCer3.sgdGene)
+library(GenomicFeatures)
+genes <- genes(TxDb.Scerevisiae.UCSC.sacCer3.sgdGene)
+sacCer3_TSSs <- genes %>%
+    resize(fix = 'start', 1) %>% 
+    resize(fix = 'end', BIN) %>% 
+    '['(. %within% GRanges(seqinfo(genes)))
+set.seed(10)
+seqs_sc <- getSeq(BSgenome.Scerevisiae.UCSC.sacCer3)[sacCer3_TSSs]
+seqs <- Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')
+seqs_sc <- seqs[GRanges(names(seqs), IRanges(1, end = width(seqs))) %>% tile(width = BIN) %>% unlist() %>% filter(width == BIN)]
+seqs <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+seqs_mpneumo <- seqs[GRanges('Mpneumo', IRanges::IRanges(start = seq(1, length(seqs[['Mpneumo']]), by = BIN), width = BIN)) %>% head(-1)]
+seqs <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+seqs_mmyco <- seqs[GRanges('Mmmyco', IRanges::IRanges(start = seq(1, length(seqs[['Mmmyco']]), by = BIN), width = BIN)) %>% head(-1)]
+list_seqs <- list(
+    'yeast' = seqs_sc, 
+    'seqs_mmyco' = seqs_mmyco,
+    'seqs_mpneumo' = seqs_mpneumo
+)
+nuc_seqs <- lapply(seq_along(list_seqs), function(K) {
+    n <- names(list_seqs)[K]
+    seqs <- list_seqs[[K]]
+    lapply(c('A', 'T', 'C', 'G'), function(N) {
+        lapply(seqs, function(seq) {
+            x <- as.character(seq) %>% strsplit("") %>% unlist() %>% grepl(N, .) %>% Rle()
+            x@lengths[x@values]
+        }) %>% unlist() %>% 
+            tibble(
+                type = n,
+                tot_length = sum(width(seqs)),
+                nuc = N,
+                stretch = .
+            )
+    }) %>% bind_rows()
+}) %>% bind_rows() %>% 
+    group_by(type, tot_length, nuc, stretch) 
+nuc_seqs <- bind_rows(nuc_seqs, lapply(seq_along(list_seqs), function(K) {
+    n <- names(list_seqs)[K]
+    seqs <- list_seqs[[K]]
+    lapply(seqs, function(seq) {
+        x <- as.character(seq) %>% strsplit("") %>% unlist() %>% {grepl('A', .) | grepl('T', .)} %>% Rle()
+        x@lengths[x@values]
+    }) %>% unlist() %>% 
+        tibble(
+            type = n,
+            tot_length = sum(width(seqs)),
+            nuc = 'W',
+            stretch = .
+        )
+}) %>% bind_rows()) %>% 
+    group_by(type, tot_length, nuc, stretch) 
+nuc_seqs_tally <- nuc_seqs %>% 
+    mutate(stretch = ifelse(stretch >= 10, 10, stretch)) %>%
+    tally() %>% 
+    filter(stretch >= 3) %>% 
+    mutate(scaled_n = n/sum(n), stretch_per_147bp = n/tot_length*147) %>% 
+    mutate(type = factor(type, c('yeast', 'seqs_mpneumo', 'seqs_mmyco'))) %>%
+    mutate(nuc = factor(nuc, c('A', 'T', 'C', 'G', 'W')))
+p <- ggplot(nuc_seqs_tally, aes(x = stretch, y = stretch_per_147bp, group = type, fill = type)) + 
+    geom_col(position = position_dodge2()) + 
+    facet_wrap(~nuc) + 
+    ylab('# of stretches / 147bp') + 
+    periodicDNA::theme_ggplot2() 
+```
+
+### Panel S2f
+
+```{r}
+BIN = 300
+library(periodicDNA)
+library(BSgenome.Scerevisiae.UCSC.sacCer3)
+library(TxDb.Scerevisiae.UCSC.sacCer3.sgdGene)
+library(GenomicFeatures)
+ushuffle <- reticulate::import("ushuffle")
+genes <- genes(TxDb.Scerevisiae.UCSC.sacCer3.sgdGene)
+sacCer3_TSSs <- genes %>%
+    resize(fix = 'start', BIN) %>% 
+    '['(. %within% GRanges(seqinfo(genes)))
+set.seed(10)
+seqs <- getSeq(BSgenome.Scerevisiae.UCSC.sacCer3)[sacCer3_TSSs]
+seqs_shuffled <- Biostrings::DNAStringSet(lapply(seqs, \(seq) {
+        seq <- ushuffle$shuffle(charToRaw(as.character(seq)), 2)
+        Biostrings::DNAString( as.character(seq) )
+}))
+PSDs_yeast <- getPeriodicity(
+    x = seqs,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+PSDs_yeast_shuffle <- getPeriodicity(
+    x = seqs_shuffled,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+seqs <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+seqs <- seqs[GRanges('Mpneumo', IRanges::IRanges(start = seq(1, length(seqs[['Mpneumo']]), by = BIN), width = BIN)) %>% head(-1)]
+seqs_shuffled <- Biostrings::DNAStringSet(lapply(seqs, \(seq) {
+        seq <- ushuffle$shuffle(charToRaw(as.character(seq)), 2)
+        Biostrings::DNAString( as.character(seq) )
+}))
+PSDs_Mpneumo <- getPeriodicity(
+    x = seqs,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+PSDs_Mpneumo_shuffle <- getPeriodicity(
+    x = seqs_shuffled,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+seqs <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+seqs <- seqs[GRanges('Mmmyco', IRanges::IRanges(start = seq(1, length(seqs[['Mmmyco']]), by = BIN), width = BIN)) %>% head(-1)]
+seqs_shuffled <- Biostrings::DNAStringSet(lapply(seqs, \(seq) {
+        seq <- ushuffle$shuffle(charToRaw(as.character(seq)), 2)
+        Biostrings::DNAString( as.character(seq) )
+}))
+PSDs_Mmmyco <- getPeriodicity(
+    x = seqs,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+PSDs_Mmmyco_shuffle <- getPeriodicity(
+    x = seqs_shuffled,
+    range_spectrum = seq(3, 160),
+    motif = 'WW', 
+    BPPARAM = MulticoreParam(18), 
+    sample = 20000000,
+    n_shuffling = 0
+)
+df <- rbind(
+    PSDs_yeast$hist %>% mutate(sample = 'yeast'), 
+    PSDs_yeast_shuffle$hist %>% mutate(sample = 'yeast_shuffle'), 
+    PSDs_Mpneumo$hist %>% mutate(sample = 'Mpneumo'), 
+    PSDs_Mpneumo_shuffle$hist %>% mutate(sample = 'Mpneumo_shuffle'), 
+    PSDs_Mmmyco$hist %>% mutate(sample = 'Mmmyco'),
+    PSDs_Mmmyco_shuffle$hist %>% mutate(sample = 'Mmmyco_shuffle')
+) %>% 
+    group_by(sample) %>%
+    filter(distance >= 3, distance <= 120) %>% 
+    split(.$sample) %>% 
+    map(~loess(counts ~ distance, data = .x) %>% broom::augment()) %>% 
+    bind_rows(.id = 'sample') %>% 
+    mutate(group = str_replace(sample, '_.*', '')) %>% 
+    mutate(class = ifelse(grepl('_shuffle', sample), 'shuffled', 'obs')) %>% 
+    mutate(group = factor(group, c('yeast', 'Mpneumo', 'Mmmyco')))
+PSD <- split(df, df$sample) %>% 
+    map(~stats::spectrum(.x$counts, plot = FALSE) %>% 
+        '['(c('spec', 'freq')) %>% 
+        as_tibble() %>% 
+        mutate(sample = unique(.x$sample), period = round(1/freq, 3))
+) %>% 
+    bind_rows() %>% 
+    mutate(round_period = round(period, 4), digits = period - round_period) %>% 
+    group_by(sample, round_period) %>% 
+    slice_min(digits, n = 1) %>% 
+    mutate(facet_ = factor(period), x = 1) %>% 
+    mutate(group = str_replace(sample, '_.*', '')) %>% 
+    mutate(class = ifelse(grepl('_shuffle', sample), 'shuffled', 'obs')) %>% 
+    mutate(group = factor(group, c('yeast', 'Mpneumo', 'Mmmyco')))
+ggplot(filter(PSD, period >= 10, period <= 11), aes(x = group, y = spec, fill = group, alpha = class)) + 
+    geom_col(position = 'dodge') + 
+    labs(y = 'Power spectral density') + 
+    scale_alpha_manual(values = c(1, 0.3)) + 
+    scale_y_log10() + 
+    annotation_logticks(sides = 'l') +
+    facet_wrap(~period, nrow = 1) + 
+    periodicDNA::theme_ggplot2()
+```
+
+### Panel S2g
+
+```{r}
+## --- Genes
+genes <- list(
+    'genes_S288c' = rtracklayer::import('~/genomes/S288c/S288c.gtf') %>% filter(type == 'gene', gene_biotype == 'protein_coding') %>% sort() %>% mutate(class = 'genebody'),
+    'genes_W303_Mmmyco' = rtracklayer::import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3') %>% filter(type == 'gene') %>% sort() %>% mutate(class = 'genebody'),
+    'genes_S288c_Mpneumo' = rtracklayer::import('~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf') %>% filter(type == 'gene', gene_biotype == 'protein_coding') %>% sort() %>% mutate(class = 'genebody')
+)
+
+## --- Tracks
+tracks <- list(
+    # ----------- WT 
+    'MNase_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/MNase/tracks/SRR3193263/SRR3193263^mapped_S288c^filtered^130-200^BADI46.130-200.CPM.bw', as = 'Rle'), 
+    'PolII_WT' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH244/CH244^mapped_S288c^CIJXLY.vs-CH246.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH245/CH245^mapped_S288c^3RQ3EM.vs-CH247.bw', as = 'Rle') ) / 2,
+    'Scc1_WT' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH224/CH224^unmapped_CBS138^mapped_S288c^YMT7BP.vs-CH225.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH226/CH226^unmapped_CBS138^mapped_S288c^MTY44Z.vs-CH227.bw', as = 'Rle') ) / 2, 
+    'H3_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/SRR1517820/SRR1517820^mapped_S288c^VG9IL4.CPM.bw', as = 'Rle'),
+    'H2A_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/SRR1517818/SRR1517818^mapped_S288c^FFF5YV.CPM.bw', as = 'Rle'),
+    'RNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.unstranded.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'fwdRNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.fwd.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'revRNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.rev.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'GC_WT' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')),
+
+    # ----------- W303 + Mmmyco 
+    'MNase_W303_Mmmyco' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/MNase/tracks/CH265/CH265^mapped_W303_Mmmyco^filtered^130-200^ZXAMER.130-200.CPM.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/MNase/tracks/CH266/CH266^mapped_W303_Mmmyco^filtered^130-200^ZG3T8W.130-200.CPM.bw', as = 'Rle') ) / 2,
+    'PolII_W303_Mmmyco' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH51/CH51^mapped_W303_Mmmyco^Y9CC89.vs-CH54.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH102/CH102^mapped_W303_Mmmyco^2FVQO3.vs-CH105.bw', as = 'Rle') ) / 2,
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH35/CH35^unmapped_CBS138^mapped_W303_Mmmyco^DTAKMF.vs-CH38.bw', as = 'Rle'), 
+    'H3_W303_Mmmyco' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH406/CH406^mapped_W303_Mmmyco^KDTEGO.vs-CH408.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH407/CH407^mapped_W303_Mmmyco^8S1VTX.vs-CH409.bw', as = 'Rle')
+    ) / 2,
+    'H2A_W303_Mmmyco' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH404/CH404^mapped_W303_Mmmyco^XOL0HV.vs-CH408.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH405/CH405^mapped_W303_Mmmyco^CXNJIS.vs-CH409.bw', as = 'Rle')
+    ) / 2,
+    'Sir3_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH380/CH380^mapped_W303_Mmmyco^D51AZ0.CPM.bw', as = 'Rle'), 
+    'RNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.unstranded.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'fwdRNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.fwd.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'revRNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.rev.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'GC_W303_Mmmyco' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')),
+
+    # ----------- S288c + Mmpneumo  
+    'MNase_S288c_Mpneumo' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/MNase/tracks/CH205/CH205^mapped_S288c_Mpneumo^filtered^130-200^X8C2LM.130-200.CPM.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/MNase/tracks/CH206/CH206^mapped_S288c_Mpneumo^filtered^130-200^HS5L1A.130-200.CPM.bw', as = 'Rle') ) / 2,
+    'PolII_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH154/CH154^mapped_S288c_Mpneumo^598366.vs-CH155.bw', as = 'Rle'),
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH219/CH219^unmapped_CBS138^mapped_S288c_Mpneumo^EHEJFT.vs-CH220.bw', as = 'Rle'), 
+    'H3_S288c_Mpneumo' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH157/CH157^mapped_S288c_Mpneumo^MGHI86.vs-CH159.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH367/CH367^mapped_S288c_Mpneumo^PCPOLZ.vs-CH371.bw', as = 'Rle')
+    ) / 2,
+    'H2A_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH366/CH366^mapped_S288c_Mpneumo^S0ZHT4.vs-CH370.bw', as = 'Rle'), 
+    'RNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.unstranded.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'fwdRNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.fwd.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'revRNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.rev.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'GC_S288c_Mpneumo' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')), 
+    
+    # ----------- W303_chrXVI-Mmmyco_inv870kb
+    'PolII_W303_chrXVI-Mmmyco_inv870kb' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/ChIP/tracks/LM80/LM80^mapped_W303_chrXVI-Mmmyco_inv870kb^5BSLFH.vs-LM81.bw', as = 'Rle'),
+    'Scc1_W303_chrXVI-Mmmyco_inv870kb' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/ChIP/tracks/LM65/LM65^unmapped_CBS138^mapped_W303_chrXVI-Mmmyco_inv870kb^WUXR6F.vs-LM64.bw', as = 'Rle'), 
+    'GC_W303_chrXVI-Mmmyco_inv870kb' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')), 
+
+    # ----------- W303_chrXVI-Mmmyco_dbl-inv
+    'PolII_W303_chrXVI-Mmmyco_dbl-inv' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/ChIP/tracks/LM82/LM82^mapped_W303_chrXVI-Mmmyco_dbl-inv^HBN3NY.vs-LM83.bw', as = 'Rle'),
+    'Scc1_W303_chrXVI-Mmmyco_dbl-inv' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/ChIP/tracks/LM67/LM67^unmapped_CBS138^mapped_W303_chrXVI-Mmmyco_dbl-inv^TXX0ZC.vs-LM66.bw', as = 'Rle'), 
+    'GC_W303_chrXVI-Mmmyco_dbl-inv' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', ''))
+
+)
+## --- Peaks
+peaks <- list(
+    'Scc1_S288c' = c(
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH224/CH224_vs-CH225_genome-S288c_YMT7BP_peaks.narrowPeak') %>% mutate(rep = 'rep1'), 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH226/CH226_vs-CH227_genome-S288c_MTY44Z_peaks.narrowPeak') %>% mutate(rep = 'rep2')
+    ) %>% filter(qValue > 10) %>% reduce_ranges(), 
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/peaks/CH35/CH35_vs-CH38_genome-W303_Mmmyco_DTAKMF_peaks.narrowPeak') %>% filter(qValue > 10) %>% reduce_ranges(), 
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/peaks/CH219/CH219_vs-CH220_genome-S288c_Mpneumo_EHEJFT_peaks.narrowPeak') %>% filter(qValue > 10) 
+)
+## --- Summits
+summits <- list(
+    'Scc1_S288c' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH224/CH224_vs-CH225_genome-S288c_YMT7BP_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_S288c']]),
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/peaks/CH35/CH35_vs-CH38_genome-W303_Mmmyco_DTAKMF_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_W303_Mmmyco']]),
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/peaks/CH219/CH219_vs-CH220_genome-S288c_Mpneumo_EHEJFT_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_S288c_Mpneumo']])
+)
+
+
+
+
+set.seed(100)
+centromere_window <- 20000
+bin <- 300
+centros <- list(
+    'centros_S288c' = read_tsv('~/genomes/S288c/S288c_centromeres.bed') %>% makeGRangesFromDataFrame(keep.extra.columns = TRUE) %>% resize(width = centromere_window, fix = 'center'),
+    'centros_W303_Mmmyco' = read_tsv('~/genomes/W303_Mmmyco/W303_Mmmyco_centromeres.bed') %>% makeGRangesFromDataFrame(keep.extra.columns = TRUE) %>% resize(width = centromere_window, fix = 'center'),
+    'centros_S288c_Mpneumo' = read_tsv('~/genomes/S288c_Mpneumo/S288c_Mpneumo_centromeres.bed') %>% makeGRangesFromDataFrame(keep.extra.columns = TRUE) %>% resize(width = centromere_window, fix = 'center')
+)
+baseline <- list(
+    'baseline_S288c' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = centromere_window) %>% 
+        unlist() %>% 
+        filter_by_non_overlaps(c(centros[['centros_S288c']], peaks[['Scc1_WT']])) %>% 
+        .[sample(length(.))],
+    'baseline_W303_Mmmyco' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = bin) %>% 
+        unlist() %>% 
+        filter_by_non_overlaps(c(centros[['centros_W303_Mmmyco']], peaks[['Scc1_W303_Mmmyco']])) %>% 
+        .[sample(length(.))],
+    'baseline_S288c_Mpneumo' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = bin) %>% 
+        unlist() %>% 
+        filter_by_non_overlaps(c(centros[['centros_S288c_Mpneumo']], peaks[['Scc1_S288c_Mpneumo']])) %>% 
+        .[sample(length(.))]
+)
+covs <- list(
+    tracks[['Scc1_WT']][centros[['centros_S288c']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'S288c', type = 'centro'),
+    tracks[['Scc1_WT']][baseline[['baseline_S288c']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'S288c', type = 'random'),
+    tracks[['Scc1_W303_Mmmyco']][centros[['centros_W303_Mmmyco']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'W303_Mmmyco', type = 'centro'),
+    tracks[['Scc1_W303_Mmmyco']][baseline[['baseline_W303_Mmmyco']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'W303_Mmmyco', type = 'random'),
+    tracks[['Scc1_S288c_Mpneumo']][centros[['centros_S288c_Mpneumo']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'S288c_Mpneumo', type = 'centro'),
+    tracks[['Scc1_S288c_Mpneumo']][baseline[['baseline_S288c_Mpneumo']]] %>% as_tibble() %>% group_by(group_name) %>% summarize(value = median(value)) %>% mutate(sample = 'S288c_Mpneumo', type = 'random')
+) %>% 
+    bind_rows()
+p <- covs %>% 
+    ggplot(aes(x = sample, y = value, fill = type)) + 
+    geom_boxplot(outlier.shape=NA) + 
+    geom_point(position=position_jitterdodge(jitter.width = 0.2), shape = 21) + 
+    theme_minimal() + 
+    theme(panel.border = element_rect(fill = NA))
+```
+
+### Panel S2i
+
+```{r}
+m <- summits[['Scc1_S288c']] %>% 
+    resize(4001, fix = 'center') %>% 
+    mutate(inCoh = {`%within%`(., tracks[['Scc1_WT']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inMnase = {`%within%`(., tracks[['MNase_WT']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inPolII = {`%within%`(., tracks[['PolII_WT']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    filter(inCoh, inMnase, inPolII) %>% 
+    mutate(name = as.character(.)) %>% 
+    {
+        g <- .
+        tracks[['Scc1_WT']][g] %>% 
+        as.matrix() %>% 
+        as.data.frame() %>%
+        mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+        pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+        mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange)) %>% 
+        mutate(grange = {
+            levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+            factor(grange, levs)
+        }) %>%
+        mutate(score_squished = scales::oob_squish(score, c(0, 5)))
+    } 
+p_WT_scc1 <- cowplot::plot_grid(
+    group_by(m, idx) %>% 
+        summarize(
+            mean = mean(score), 
+            se = sd(score, na.rm=TRUE)/sqrt(dplyr::n()),
+            Q = stats::qt(0.950, dplyr::n()-1, lower.tail = FALSE),
+            ci_up = mean + Q*se, 
+            ci_down = mean - Q*se
+        ) %>% 
+        mutate(
+            mean = slider::slide_dbl(mean, base::mean, .before = 100, .after = 100),
+            ci_up = slider::slide_dbl(ci_up, base::mean, .before = 100, .after = 100),
+            ci_down = slider::slide_dbl(ci_down, base::mean, .before = 100, .after = 100)
+        ) %>%
+        ggplot() + 
+        geom_line(mapping = aes(x = idx, y = mean)) +
+        geom_ribbon(mapping = aes(x = idx, ymin = ci_down, ymax = ci_up), col = NA, alpha = 0.4) + 
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle('Scc1 ChIP @ Scc1 summits') + 
+        labs(y = '') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)),
+    ggplot(col = NA) + 
+        ggrastr::geom_tile_rast(data = m, mapping = aes(x = idx, y = grange, fill = score_squished, alpha = score_squished), raster.dpi = 500) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            axis.text.y=element_blank(),
+            axis.ticks.y=element_blank(), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle(NULL) + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        scale_fill_distiller(palette = 'YlOrRd', direction = 1),
+    nrow = 2, align = 'hv', axis = 'tblr', rel_heights = c(1, 2)
+)
+m <- summits[['Scc1_W303_Mmmyco']] %>% 
+    filter(grepl('chr', seqnames)) %>% 
+    resize(4001, fix = 'center') %>% 
+    mutate(inCoh = {`%within%`(., tracks[['Scc1_W303_Mmmyco']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inMnase = {`%within%`(., tracks[['MNase_W303_Mmmyco']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inPolII = {`%within%`(., tracks[['PolII_W303_Mmmyco']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    filter(inCoh, inMnase, inPolII) %>% 
+    mutate(name = as.character(.)) %>% 
+    {
+        g <- .
+        tracks[['Scc1_W303_Mmmyco']][g] %>% 
+        as.matrix() %>% 
+        as.data.frame() %>%
+        mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+        pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+        mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange)) %>% 
+        mutate(grange = {
+            levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+            factor(grange, levs)
+        }) %>%
+        mutate(score_squished = scales::oob_squish(score, c(0, 5)))
+    } 
+p_W303_Mmmyco_scc1 <- cowplot::plot_grid(
+    group_by(m, idx) %>% 
+        summarize(
+            mean = mean(score), 
+            se = sd(score, na.rm=TRUE)/sqrt(dplyr::n()),
+            Q = stats::qt(0.950, dplyr::n()-1, lower.tail = FALSE),
+            ci_up = mean + Q*se, 
+            ci_down = mean - Q*se
+        ) %>% 
+        mutate(
+            mean = slider::slide_dbl(mean, base::mean, .before = 100, .after = 100),
+            ci_up = slider::slide_dbl(ci_up, base::mean, .before = 100, .after = 100),
+            ci_down = slider::slide_dbl(ci_down, base::mean, .before = 100, .after = 100)
+        ) %>%
+        ggplot() + 
+        geom_line(mapping = aes(x = idx, y = mean)) +
+        geom_ribbon(mapping = aes(x = idx, ymin = ci_down, ymax = ci_up), col = NA, alpha = 0.4) + 
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle('Scc1 ChIP @ Scc1 summits') + 
+        labs(y = '') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)),
+    ggplot(col = NA) + 
+        ggrastr::geom_tile_rast(data = m, mapping = aes(x = idx, y = grange, fill = score_squished, alpha = score_squished), raster.dpi = 500) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            axis.text.y=element_blank(),
+            axis.ticks.y=element_blank(), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle(NULL) + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        scale_fill_distiller(palette = 'YlOrRd', direction = 1),
+    nrow = 2, align = 'hv', axis = 'tblr', rel_heights = c(1, 2)
+)
+m <- summits[['Scc1_S288c_Mpneumo']] %>% 
+    filter(!grepl('Mpneumo', seqnames)) %>% 
+    resize(4001, fix = 'center') %>% 
+    mutate(inCoh = {`%within%`(., tracks[['Scc1_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inMnase = {`%within%`(., tracks[['MNase_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inPolII = {`%within%`(., tracks[['PolII_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    filter(inCoh, inMnase, inPolII) %>% 
+    mutate(name = as.character(.)) %>% 
+    {
+        g <- .
+        tracks[['Scc1_S288c_Mpneumo']][g] %>% 
+        as.matrix() %>% 
+        as.data.frame() %>%
+        mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+        pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+        mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange)) %>% 
+        mutate(grange = {
+            levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+            factor(grange, levs)
+        }) %>%
+        mutate(score_squished = scales::oob_squish(score, c(0, 5)))
+    } 
+p_S288c_Mpneumo_scc1 <- cowplot::plot_grid(
+    group_by(m, idx) %>% 
+        summarize(
+            mean = mean(score), 
+            se = sd(score, na.rm=TRUE)/sqrt(dplyr::n()),
+            Q = stats::qt(0.950, dplyr::n()-1, lower.tail = FALSE),
+            ci_up = mean + Q*se, 
+            ci_down = mean - Q*se
+        ) %>% 
+        mutate(
+            mean = slider::slide_dbl(mean, base::mean, .before = 100, .after = 100),
+            ci_up = slider::slide_dbl(ci_up, base::mean, .before = 100, .after = 100),
+            ci_down = slider::slide_dbl(ci_down, base::mean, .before = 100, .after = 100)
+        ) %>%
+        ggplot() + 
+        geom_line(mapping = aes(x = idx, y = mean)) +
+        geom_ribbon(mapping = aes(x = idx, ymin = ci_down, ymax = ci_up), col = NA, alpha = 0.4) + 
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle('Scc1 ChIP @ Scc1 summits') + 
+        labs(y = '') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)),
+    ggplot(col = NA) + 
+        ggrastr::geom_tile_rast(data = m, mapping = aes(x = idx, y = grange, fill = score_squished, alpha = score_squished), raster.dpi = 500) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            axis.text.y=element_blank(),
+            axis.ticks.y=element_blank(), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle(NULL) + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        scale_fill_distiller(palette = 'YlOrRd', direction = 1),
+    nrow = 2, align = 'hv', axis = 'tblr', rel_heights = c(1, 2)
+)
+p_Scc1 <- cowplot::plot_grid(p_WT_scc1, p_W303_Mmmyco_scc1, p_S288c_Mpneumo_scc1, nrow = 1, align = 'hv', axis = 'tblr')
+```
+
+### Panel S2j
+
+```{r}
+g <- summits[['Scc1_S288c_Mpneumo']] %>% 
+    filter(seqnames %in% c('II', 'Mpneumo')) %>%
+    # mutate(seqnames = ifelse(seqnames == 'Mpneumo', 'Mpneumo', 'Yeast')) %>%
+    resize(4001, fix = 'center') %>% 
+    mutate(inCoh = {`%within%`(., tracks[['Scc1_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inMnase = {`%within%`(., tracks[['MNase_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    mutate(inPolII = {`%within%`(., tracks[['PolII_S288c_Mpneumo']] %>% lengths() %>% tibble(seqnames = names(.), start = 1, end = .) %>% makeGRangesFromDataFrame())}) %>% 
+    filter(inCoh, inMnase, inPolII) %>% 
+    mutate(name = as.character(.))
+mat_coh <- tracks[['Scc1_S288c_Mpneumo']][g] %>% 
+    as.matrix() %>% 
+    as.data.frame() %>%
+    mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+    pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+    mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange)) %>% 
+    mutate(grange = {
+        levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+        factor(grange, levs)
+    }) %>%
+    mutate(score = scales::oob_squish(score, quantile(score, c(.0, .90))))
+mat_mnase <- tracks[['MNase_S288c_Mpneumo']][g] %>% 
+    as.matrix() %>% 
+    as.data.frame() %>%
+    mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+    pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+    mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange, levels(mat_coh$grange))) %>% 
+    mutate(grange = {
+        levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+        factor(grange, levs)
+    }) %>%
+    mutate(score = scales::oob_squish(score, quantile(score, c(.00, .90))))
+mat_polii <- tracks[['PolII_S288c_Mpneumo']][g] %>% 
+    as.matrix() %>% 
+    as.data.frame() %>%
+    mutate(seqnames = as.vector(seqnames(g)), grange = g$name) %>%
+    pivot_longer(cols = -c(grange, seqnames), names_to = 'idx', values_to = 'score') %>% 
+    mutate(idx = as.numeric(factor(idx, unique(idx))) - 2000, grange = factor(grange, levels(mat_coh$grange))) %>% 
+    mutate(grange = {
+        levs <- group_by(., grange) %>% filter(abs(idx) < 1000) %>% dplyr::summarize(m = mean(score)) %>% arrange(m) %>% pull(grange)
+        factor(grange, levs)
+    }) %>%
+    mutate(score = scales::oob_squish(score, quantile(score, c(.00, .90))))
+p <- cowplot::plot_grid(
+    group_by(mat_mnase, seqnames, idx) %>% 
+        summarize(
+            mean = mean(score), 
+            se = sd(score, na.rm=TRUE)/sqrt(dplyr::n()),
+            Q = stats::qt(0.950, dplyr::n()-1, lower.tail = FALSE),
+            ci_up = mean + Q*se, 
+            ci_down = mean - Q*se
+        ) %>% 
+        mutate(
+            mean = slider::slide_dbl(mean, base::mean, .before = 100, .after = 100),
+            ci_up = slider::slide_dbl(ci_up, base::mean, .before = 100, .after = 100),
+            ci_down = slider::slide_dbl(ci_down, base::mean, .before = 100, .after = 100)
+        ) %>%
+        ggplot() + 
+        geom_line(mapping = aes(x = idx, y = mean, group = seqnames, col = seqnames)) +
+        geom_ribbon(mapping = aes(x = idx, ymin = ci_down, ymax = ci_up, group = seqnames, fill = seqnames), col = NA, alpha = 0.4) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            legend.position = 'none'
+        ) +
+        ggtitle('MNase-seq') + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        facet_grid(seqnames~., scales = 'free'),
+    ggplot(col = NA) + 
+        ggrastr::geom_tile_rast(data = mat_mnase, mapping = aes(x = idx, y = grange, fill = score, alpha = score), raster.dpi = 500) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            axis.text.y=element_blank(),
+            axis.ticks.y=element_blank(), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major.y = element_blank(), 
+            panel.grid.minor.y = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle(NULL) + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        scale_fill_gradientn(colours = c('white', '#bcdefd', '#5aa3e7', '#1d6cb6')) + 
+        facet_grid(seqnames~., scales = 'free'),
+    group_by(mat_polii, seqnames, idx) %>% 
+        summarize(
+            mean = mean(score), 
+            se = sd(score, na.rm=TRUE)/sqrt(dplyr::n()),
+            Q = stats::qt(0.950, dplyr::n()-1, lower.tail = FALSE),
+            ci_up = mean + Q*se, 
+            ci_down = mean - Q*se
+        ) %>% 
+        mutate(
+            mean = slider::slide_dbl(mean, base::mean, .before = 100, .after = 100),
+            ci_up = slider::slide_dbl(ci_up, base::mean, .before = 100, .after = 100),
+            ci_down = slider::slide_dbl(ci_down, base::mean, .before = 100, .after = 100)
+        ) %>%
+        ggplot() + 
+        geom_line(mapping = aes(x = idx, y = mean, group = seqnames, col = seqnames)) +
+        geom_ribbon(mapping = aes(x = idx, ymin = ci_down, ymax = ci_up, group = seqnames, fill = seqnames), col = NA, alpha = 0.4) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            legend.position = 'none'
+        ) +
+        ggtitle('PolII ChIP-seq') + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        facet_grid(seqnames~., scales = 'free'),
+    ggplot(col = NA) + 
+        ggrastr::geom_tile_rast(data = mat_polii, mapping = aes(x = idx, y = grange, fill = score, alpha = score), raster.dpi = 500) +
+        theme_minimal() + 
+        theme(
+            text = element_text(size=8), 
+            axis.text.y=element_blank(),
+            axis.ticks.y=element_blank(), 
+            panel.border = element_rect(size = 0.3, fill = NA, colour = 'black'), 
+            panel.grid.major.y = element_blank(), 
+            panel.grid.minor.y = element_blank(), 
+            legend.position = 'none'
+        ) +
+        ggtitle(NULL) + 
+        labs(y = '') + 
+        scale_x_continuous(expand = c(0, 0)) + 
+        scale_fill_gradientn(colours = c('white', '#d9ffe1', '#47da67', '#067e2a')) + 
+        facet_grid(seqnames~., scales = 'free'),
+    nrow = 2, align = 'hv', axis = 'tblr'
+)
+```
+

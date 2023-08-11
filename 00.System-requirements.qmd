@@ -1,0 +1,54 @@
+---
+eval: false
+engine: knitr
+---
+
+# System requirements
+
+## Main system requirements 
+
+- Ubuntu 18.04
+- R 4.3.0, Bioconducctor 3.17
+- Python 3.7
+
+## Data processing softwares: 
+
+### Processing tools
+
+- Bowtie2 2.4.5
+- samtools 1.9
+- deeptools 3.5.1
+- bedtools 2.29.1
+- MACS2 2.2.7.1
+- Keras
+- Tensorflow
+
+### Processing workflow managers 
+
+Most sequencing data was processed with [tinyMapper 0.11.3-0.12.14](https://github.com/js2264/tinyMapper).  
+Hi-C data was processed with [hicstuff 3.1.2](https://github.com/koszullab/hicstuff) and [Chromosight 1.4.1](https://github.com/koszullab/chromosight).
+
+## Relevant R packages 
+
+Main R packages used in this study are listed below. All versions are 
+bound to Bioconductor 3.17 unless specifically mentioned. 
+
+- S4Vectors
+- GenomicRanges
+- GenomicAlignments
+- Biostrings
+- rtracklayer
+- plyranges
+- ggplot2
+- Repliscope 1.1.1
+- HiCExperiment 
+- HiContacts 
+
+## Relevant python packages 
+
+Main python packages used in this study are listed below: 
+
+- cooler 0.8.7-0.8.11
+- hicstuff 3.1.2
+- Chromosight 1.4.1
+

@@ -1,0 +1,461 @@
+---
+eval: false
+engine: knitr
+---
+
+# Code for generating Figure 5 & Extended Data figures 
+
+## Importing libraries 
+
+```{r}
+library(purrr)
+library(GenomicRanges)
+library(GenomeInfoDb)
+library(Biostrings)
+library(plyranges)
+library(HiContacts)
+```
+
+## Figure 5
+
+### Panel 5b 
+
+```{r}
+contacts_maps <- list(
+    'Mmmyco_G1' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/HiC/matrices/CH02/CH02^mapped_W303_Mmmyco^7E45DD.mcool', 
+        resolution = 4000
+    ), 
+    'chrXVI-Mmmyco_G1' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco/HiC/matrices/LM33/LM33^mapped_W303_chrXVI-Mmmyco^CTGJED.mcool', 
+        resolution = 4000
+    ),
+    'chrXVI-Mmmyco_single-transloc_G1' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/HiC/matrices/LM62/LM62^mapped_W303_chrXVI-Mmmyco_inv870kb^CR0A8F.mcool', 
+        resolution = 4000
+    ),
+    'chrXVI-Mmmyco_double-transloc_G1' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/HiC/matrices/LM63/LM63^mapped_W303_chrXVI-Mmmyco_dbl-inv^4KJ91Y.mcool', 
+        resolution = 4000
+    )
+)
+
+cmap <- HiCExperiment::afmhotrColors()
+
+lapply(names(contacts_maps), function(n) {
+    m <- contacts_maps[[n]]
+    plotMatrix(m, limits = c(-4, -1), cmap = cmap)
+})
+
+lapply(names(contacts_maps), function(n) {
+    m <- contacts_maps[[n]] |> 
+        zoom(resolution = 8000)
+    m <- autocorrelate(m, use.scores = 'balanced', detrend = FALSE, ignore_ndiags = 4)
+    plotMatrix(m, use.scores = 'autocorrelated', limits = c(-0.8, 0.8), scale = 'linear', cmap = bwrColors())
+})
+```
+
+### Panel 5c
+
+```{r}
+x <- contacts_maps[['chrXVI-Mmmyco_G1']][c('chrXV', 'chrXVI-Mmmyco')]
+v4C_chrXVI_Mmmyco <- bind_rows(
+    virtual4C(x, GRanges("chrXV:600000-620000")) |> mutate(sample = 'chrXVI-Mmmyco', group = 'chrXV') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco:300000-320000")) |> mutate(sample = 'chrXVI-Mmmyco', group = 'chrXVI-Mmmyco_yeast-seg') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco:1500000-1520000")) |> mutate(sample = 'chrXVI-Mmmyco', group = 'chrXVI-Mmmyco_myco-seg') |> as_tibble()
+)
+
+x <- contacts_maps[['chrXVI-Mmmyco_single-transloc_G1']][c('chrXV', 'chrXVI-Mmmyco_inv870kb')]
+v4C_chrXVI_Mmmyco_inv870kb <- bind_rows(
+    virtual4C(x, GRanges("chrXV:600000-620000")) |> mutate(sample = 'chrXVI-Mmmyco_inv870kb', group = 'chrXV') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_inv870kb:200000-220000")) |> mutate(sample = 'chrXVI-Mmmyco_inv870kb', group = 'chrXVI-Mmmyco_inv870kb_yeast-seg1') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_inv870kb:720000-750000")) |> mutate(sample = 'chrXVI-Mmmyco_inv870kb', group = 'chrXVI-Mmmyco_inv870kb_myco-seg1') |> as_tibble(),
+    virtual4C(x, GRanges("chrXVI-Mmmyco_inv870kb:1200000-1220000")) |> mutate(sample = 'chrXVI-Mmmyco_inv870kb', group = 'chrXVI-Mmmyco_inv870kb_yeast-seg2') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_inv870kb:1620000-1650000")) |> mutate(sample = 'chrXVI-Mmmyco_inv870kb', group = 'chrXVI-Mmmyco_inv870kb_myco-seg2') |> as_tibble()
+)
+
+x <- contacts_maps[['chrXVI-Mmmyco_double-transloc_G1']][c('chrXV', 'chrXVI-Mmmyco_dbl-inv')]
+v4C_chrXVI_Mmmyco_dbl_inv <- bind_rows(
+    virtual4C(x, GRanges("chrXV:600000-650000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXV') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:200000-250000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_yeast-seg1') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:470000-490000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_myco-seg1') |> as_tibble(),
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:700000-720000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_yeast-seg2') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:1100000-1120000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_myco-seg2') |> as_tibble(),
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:1380000-1400000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_yeast-seg3') |> as_tibble(), 
+    virtual4C(x, GRanges("chrXVI-Mmmyco_dbl-inv:1800000-1820000")) |> mutate(sample = 'chrXVI-Mmmyco_dbl-inv', group = 'chrXVI-Mmmyco_dbl-inv_myco-seg3') |> as_tibble()
+)
+
+df <- bind_rows(v4C_chrXVI_Mmmyco, v4C_chrXVI_Mmmyco_inv870kb, v4C_chrXVI_Mmmyco_dbl_inv) |>
+    group_by(sample, group) |>
+    filter(score > 0) |>
+    mutate(score = zoo::rollmean(score, k = 20, na.pad = TRUE, align = 'center'))
+
+plot4C(
+    df, 
+    aes(x = center, y = score, group = group, col = group)
+) + 
+    facet_grid(seqnames~sample, scales = 'free') + 
+    coord_cartesian(ylim = c(0, 0.01)) + 
+    theme(legend.position = 'bottom')
+```
+
+### Panel 5d
+
+```{r}
+import('data/LM122/matrices/LM122/LM122^mapped_W303_chrXVI-Mmmyco-XIII_flipped^TZ174P.mcool', resolution = 2000) %>%
+    `[`(c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |>
+    plotMatrix(limits = c(-4.5, -1.5), chrom_lines = TRUE, dpi = 500) + 
+    ggtitle("Transloc chr. XIII, G1")
+
+import('data/LM122/matrices/LM122/LM122^mapped_W303_chrXVI-Mmmyco-XIII_flipped^TZ174P.mcool', resolution = 4000) %>%
+    `[`(c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |>
+    detrend() |> 
+    despeckle(use.scores = 'detrended') |>
+    plotMatrix(limits = c(-1, 1), chrom_lines = TRUE, dpi = 500, use.scores = 'detrended.despeckled', scale = 'linear', cmap = bwrColors()) + 
+    ggtitle("Transloc chr. XIII, G1")
+
+triple_G1 <- import('data/LM122/matrices/LM122/LM122^mapped_W303_chrXVI-Mmmyco-XIII_flipped^TZ174P.mcool', resolution = 4000) 
+df <- rbind(
+    virtual4C(triple_G1, viewpoint = GRanges('chrXIII-Mmmyco:120000-140000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr13-130kb'), 
+    virtual4C(triple_G1, viewpoint = GRanges('chrXIII-Mmmyco:400000-420000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr13-400kb'), 
+    virtual4C(triple_G1, viewpoint = GRanges('chrXIII-Mmmyco:900000-920000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr13-900kb'), 
+
+    virtual4C(triple_G1, viewpoint = GRanges('chrXVI-Mmmyco-chrXIII:190000-210000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr16-200kb'),
+    virtual4C(triple_G1, viewpoint = GRanges('chrXVI-Mmmyco-chrXIII:490000-510000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr16-500kb'),
+    virtual4C(triple_G1, viewpoint = GRanges('chrXVI-Mmmyco-chrXIII:910000-930000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr16-920kb'),
+    virtual4C(triple_G1, viewpoint = GRanges('chrXVI-Mmmyco-chrXIII:1340000-1360000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr16-1350kb'),
+    virtual4C(triple_G1, viewpoint = GRanges('chrXVI-Mmmyco-chrXIII:1840000-1860000')) |> 
+        as_tibble() |>
+        filter(seqnames %in% c('chrXIII-Mmmyco', 'chrXVI-Mmmyco-chrXIII')) |> 
+        mutate(viewpoint = 'chr16-1850kb')
+) |> 
+    group_by(viewpoint, seqnames) |>
+    filter(score > 0) |>
+    mutate(score = zoo::rollmean(score, k = 15, na.pad = TRUE, align = 'center'))
+
+p <- plot4C(df, aes(x = center, y = score, group = viewpoint, col = viewpoint)) + 
+    facet_grid(viewpoint~seqnames) + 
+    coord_cartesian(ylim = c(0, 0.02)) + 
+    theme(legend.position = 'bottom')
+```
+
+## Figure S6
+
+### Panel S6d 
+
+```{r}
+BINSIZE <- 10000
+p_W303_Mmmyco <- cowplot::plot_grid(
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'Mmmyco', 'Mpneumo')) %>%
+        tracks[['PolII_W303_Mmmyco']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'PolII') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3))
+        }),
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'Mmmyco', 'Mpneumo')) %>%
+        tracks[['Scc1_W303_Mmmyco']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'Scc1') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3))
+        }),
+    byrow = TRUE, 
+    nrow = 2,
+    align = 'hv', axis = 'tblr'
+)
+p_PolII_W303_chrXVI_Mmmyco_inv870kb <- cowplot::plot_grid(
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'chrXVI-Mmmyco_inv870kb', 'chrXVI-Mmmyco_dbl-inv')) %>%
+        tracks[['PolII_W303_chrXVI-Mmmyco_inv870kb']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'PolII') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3)) + 
+                geom_hline(yintercept = 1)
+        }),
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'chrXVI-Mmmyco_inv870kb', 'chrXVI-Mmmyco_dbl-inv')) %>%
+        tracks[['Scc1_W303_chrXVI-Mmmyco_inv870kb']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'Scc1') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3)) + 
+                geom_hline(yintercept = 1)
+        }),
+    byrow = TRUE, 
+    nrow = 2,
+    align = 'hv', axis = 'tblr'
+)
+p_PolII_W303_chrXVI_Mmmyco_dbl_inv <- cowplot::plot_grid(
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'chrXVI-Mmmyco_inv870kb', 'chrXVI-Mmmyco_dbl-inv')) %>%
+        tracks[['PolII_W303_chrXVI-Mmmyco_dbl-inv']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'PolII') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3))
+        }),
+    lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() %>%
+        filter(seqnames %in% c('V', 'VI', 'VII', 'chrV', 'chrVI', 'chrVII', 'chrXVI-Mmmyco_inv870kb', 'chrXVI-Mmmyco_dbl-inv')) %>%
+        tracks[['Scc1_W303_chrXVI-Mmmyco_dbl-inv']][.] %>% 
+        as.data.frame() %>% 
+        group_by(group_name, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        arrange(group) %>% 
+        mutate(
+            chr = group_name, 
+            group_name = ifelse(!group_name %in% c('Mmmyco', 'Mpneumo'), 'S. cerevisiae', 'chr. bact.'), 
+            group_name = factor(group_name, c('S. cerevisiae', 'chr. bact.')), 
+            l2cov = coverage
+        ) %>% 
+        group_by(chr) %>%
+        filter(l2cov > 0, !chr %in% c('Mito')) %>%
+        (function(d) {
+            ggplot(d, aes(x = group, y = l2cov, col = group_name, fill = group_name)) + 
+                geom_col() +
+                geom_vline(xintercept = c(1, d %>% group_by(chr) %>% slice_tail(n=1) %>% pull(group))) +
+                VplotR::theme_ggplot2() + 
+                labs(x = '', y = 'Scc1') + 
+                scale_x_continuous(label = dplyr::slice(d, ceiling(dplyr::n()/2))$chr, breaks = dplyr::slice(d, ceiling(dplyr::n()/2))$group, expand = c(0, 0)) + 
+                scale_colour_manual(values = c('#808080', '#a3195b')) + scale_fill_manual(values = c('#808080', '#a3195b')) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) + 
+                theme(legend.position = 'none', panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 3))
+        }),
+    byrow = TRUE, 
+    nrow = 2,
+    align = 'hv', axis = 'tblr'
+)
+p <- cowplot::plot_grid(p_W303_Mmmyco, p_PolII_W303_chrXVI_Mmmyco_inv870kb, p_PolII_W303_chrXVI_Mmmyco_dbl_inv, ncol = 3, align = 'hv', axis = 'tblr')
+
+```
+
+### Panel S6e
+
+```{r}
+x_chrXVI_Mmmyco_G1 <- contacts_maps[['chrXVI-Mmmyco_G1']]
+pairsFile(x_chrXVI_Mmmyco_G1) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco/HiC/pairs/LM33/LM33^mapped_W303_chrXVI-Mmmyco^CTGJED.valid_idx_pcrfree.pairs'
+x_chrXVI_Mmmyco_G2 <- contacts_maps[['chrXVI-Mmmyco_G2']]
+pairsFile(x_chrXVI_Mmmyco_G2) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco/HiC/pairs/LM34/LM34^mapped_W303_chrXVI-Mmmyco^Q1B8XV.valid_idx_pcrfree.pairs'
+x_chrXVI_Mmmyco_single_transloc_G1 <- contacts_maps[['chrXVI-Mmmyco_single-transloc_G1']]
+pairsFile(x_chrXVI_Mmmyco_single_transloc_G1) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/HiC/pairs/LM62/LM62^mapped_W303_chrXVI-Mmmyco_inv870kb^CR0A8F.valid_idx_pcrfree.pairs'
+x_chrXVI_Mmmyco_single_transloc_G2 <- contacts_maps[['chrXVI-Mmmyco_single-transloc_G2']]
+pairsFile(x_chrXVI_Mmmyco_single_transloc_G2) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/HiC/pairs/LM58/LM58^mapped_W303_chrXVI-Mmmyco_inv870kb^DNJEQF.valid_idx_pcrfree.pairs'
+x_chrXVI_Mmmyco_double_transloc_G1 <- contacts_maps[['chrXVI-Mmmyco_double-transloc_G1']]
+pairsFile(x_chrXVI_Mmmyco_double_transloc_G1) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/HiC/pairs/LM63/LM63^mapped_W303_chrXVI-Mmmyco_dbl-inv^4KJ91Y.valid_idx_pcrfree.pairs'
+x_chrXVI_Mmmyco_double_transloc_G2 <- contacts_maps[['chrXVI-Mmmyco_double-transloc_G2']]
+pairsFile(x_chrXVI_Mmmyco_double_transloc_G2) <- '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/HiC/pairs/LM59/LM59^mapped_W303_chrXVI-Mmmyco_dbl-inv^A3S9E5.valid_idx_pcrfree.pairs'
+
+scalo <- bind_rows(
+    getScalogram(x_chrXVI_Mmmyco_G1, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI-Mmmyco_G1'), 
+    getScalogram(x_chrXVI_Mmmyco_G2, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI-Mmmyco_G2'),
+    getScalogram(x_chrXVI_Mmmyco_single_transloc_G1, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI_Mmmyco_single_transloc_G1'), 
+    getScalogram(x_chrXVI_Mmmyco_single_transloc_G2, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI_Mmmyco_single_transloc_G2'), 
+    getScalogram(x_chrXVI_Mmmyco_double_transloc_G1, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI_Mmmyco_double_transloc_G1'), 
+    getScalogram(x_chrXVI_Mmmyco_double_transloc_G2, nbins = 100, probs = c(0, 0.25, 0.5, 0.75, 1)) |> mutate(group = 'chrXVI_Mmmyco_double_transloc_G2')
+)
+ggScalogram(
+    filter(scalo, chr %in% c('chrIV', 'chrXVI-Mmmyco', 'chrXVI-Mmmyco_inv870kb', 'chrXVI-Mmmyco_dbl-inv')), 
+    ylim = c(2000, 1e5)
+) + facet_grid(chr~group, scales = 'free')
+```
+
+### Panel S6f 
+
+```{r}3
+contacts_maps <- list(
+    'Mmmyco_G2' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/HiC/matrices/CH196_nvq/CH196_nvq^mapped_W303_Mmmyco^PRWGZZ.mcool', 
+        resolution = 4000
+    ), 
+    'chrXVI-Mmmyco_G2' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco/HiC/matrices/LM34/LM34^mapped_W303_chrXVI-Mmmyco^Q1B8XV.mcool', 
+        resolution = 4000
+    ),
+    'chrXVI-Mmmyco_single-transloc_G2' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/HiC/matrices/LM58/LM58^mapped_W303_chrXVI-Mmmyco_inv870kb^DNJEQF.mcool', 
+        resolution = 4000
+    ),
+    'chrXVI-Mmmyco_double-transloc_G2' = HiCExperiment::HiCExperiment(
+        '~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/HiC/matrices/LM59/LM59^mapped_W303_chrXVI-Mmmyco_dbl-inv^A3S9E5.mcool', 
+        resolution = 4000
+    )
+)
+
+cmap <- HiCExperiment::afmhotrColors()
+
+lapply(names(contacts_maps), function(n) {
+    m <- contacts_maps[[n]]
+    # Full genome maps
+    p <- plotMatrix(m, limits = c(-4, -1), cmap = cmap)
+    ggsave(glue::glue('figures/fig6/{n}_whole-genome___4.pdf'))
+    # last chromosomes
+    chr <- tail(GenomeInfoDb::seqlevels(seqinfo(m)), 1)
+    sub <- if(grepl('chr', chr)) c('chrXV', chr) else c('chrXV', 'chrXVI', chr)
+    p <- plotMatrix(m[sub], limits = c(-4, -2), cmap = cmap) + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank())
+    ggsave(glue::glue('figures/fig6/{n}_chrXV-{chr}___4.pdf'))
+    # autocorrelation of last chromosomes
+    chr <- tail(GenomeInfoDb::seqlevels(seqinfo(m)), 1)
+    sub <- if(grepl('chr', chr)) c(chr) else c('chrXVI', chr)
+    plotMatrix(autocorrelate(m[sub]), limits = c(-1, 1), scale = 'linear', cmap = bwrColors()) + theme(panel.grid.minor = element_blank(), panel.grid.major = element_blank())
+})
+
+lapply(names(contacts_maps), function(n) {
+    m <- contacts_maps[[n]] |> 
+        zoom(resolution = 8000)
+    m <- autocorrelate(m, use.scores = 'balanced', detrend = FALSE, ignore_ndiags = 4)
+    plotMatrix(m, use.scores = 'autocorrelated', limits = c(-0.8, 0.8), scale = 'linear', cmap = bwrColors())
+})
+```
+
+### Panel S6g
+
+```{r}
+cowplot::plot_grid(
+    plotMatrix(contacts_maps[['chrXVI-Mmmyco_G2']]['chrXVI-Mmmyco:456000-556000'] |> zoom(2000) |> detrend(), use.scores = 'balanced', limits = c(-3.5, -1.2), scale = 'log10', cmap = coolerColors()), 
+    plotMatrix(contacts_maps[['chrXVI-Mmmyco_G2']]['chrXVI-Mmmyco:1328000-1428000'] |> zoom(2000) |> detrend(), use.scores = 'balanced', limits = c(-3.5, -1.2), scale = 'log10', cmap = coolerColors()), 
+    plotMatrix(contacts_maps[['chrXVI-Mmmyco_single-transloc_G2']]['chrXVI-Mmmyco_inv870kb:456000-556000'] |> zoom(2000) |> detrend(), use.scores = 'balanced', limits = c(-3.5, -1.2), scale = 'log10', cmap = coolerColors()), 
+    nrow = 1
+)
+```
+
+
+
+

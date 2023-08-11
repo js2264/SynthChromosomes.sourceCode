@@ -1,0 +1,818 @@
+---
+eval: false
+engine: knitr
+---
+
+# Code for generating Figure 3 & Extended Data figures 
+
+## Importing libraries 
+
+```{r}
+library(purrr)
+library(GenomicRanges)
+library(GenomeInfoDb)
+library(Biostrings)
+library(plyranges)
+```
+
+## Figure 3
+
+### Panel 3a
+
+```{r}
+seq_myco <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+genome_myco <- GRanges(paste0(names(seq_myco), ':1-', lengths(seq_myco)))
+seqlengths(genome_myco) <- lengths(seq_myco)
+genes_myco <- import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3') |> filter(type == 'gene') |> filter(!seqnames %in% c('Mmmyco', 'Mpneumo'))
+rna_fwd_myco <- {
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.fwd.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.fwd.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.fwd.CPM.bw', as = 'Rle')}
+} / 3
+rna_rev_myco <- {
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.rev.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.rev.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.rev.CPM.bw', as = 'Rle')}
+} / 3
+rna_fwd_pneumo <- {
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.fwd.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.fwd.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.fwd.CPM.bw', as = 'Rle')}
+} / 3
+rna_rev_pneumo <- {
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.rev.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.rev.CPM.bw', as = 'Rle')} + 
+    {import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.rev.CPM.bw', as = 'Rle')}
+} / 3
+GC_skew_myco <- import("results/W303_Mmmyco_GC-skew.bw", as = 'Rle')
+AT_skew_myco <- import("results/W303_Mmmyco_AT-skew.bw", as = 'Rle')
+GC_skew_pneumo <- import("results/S288c_Mpneumo_GC-skew.bw", as = 'Rle')
+AT_skew_pneumo <- import("results/S288c_Mpneumo_AT-skew.bw", as = 'Rle')
+BINWIDTH = 500
+
+## --- Create plots
+gr_XVI <- GRanges("chrXVI:1-700000")
+seqlevels(gr_XVI) <- seqlevels(rna_fwd_myco)
+seqinfo(gr_XVI) <- seqinfo(rna_fwd_myco)
+gr_bact <- GRanges("Mmmyco:1-700000")
+seqlevels(gr_bact) <- seqlevels(rna_fwd_myco)
+seqinfo(gr_bact) <- seqinfo(rna_fwd_myco)
+p_myco <- cowplot::plot_grid(
+    # XVI
+    tile_ranges(gr_XVI, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_fwd_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#ee766f') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA fwd @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    tile_ranges(gr_XVI, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_rev_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2eb7be') |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA rev @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    slide_ranges(gr_XVI, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = GC_skew_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC skew @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') + 
+        labs(x = NULL), 
+    slide_ranges(gr_XVI, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = AT_skew_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('AT skew @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') + 
+        labs(x = NULL), 
+
+
+
+    # Myco
+    tile_ranges(gr_bact, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_fwd_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#ee766f') |> ggrastr::rasterize(dpi = 1000)+
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA fwd @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    tile_ranges(gr_bact, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_rev_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2eb7be') |> ggrastr::rasterize(dpi = 1000)+
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA rev @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    slide_ranges(gr_bact, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = GC_skew_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC skew @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') +
+        labs(x = NULL), 
+    slide_ranges(gr_bact, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = AT_skew_myco, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('AT skew @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') +
+        labs(x = NULL), 
+
+
+
+    ncol = 2, byrow = FALSE
+)
+
+gr_XVI <- GRanges("XVI:1-700000")
+seqlevels(gr_XVI) <- seqlevels(rna_fwd_pneumo)
+seqinfo(gr_XVI) <- seqinfo(rna_fwd_pneumo)
+gr_bact <- GRanges("Mpneumo:1-700000")
+seqlevels(gr_bact) <- seqlevels(rna_fwd_pneumo)
+seqinfo(gr_bact) <- seqinfo(rna_fwd_pneumo)
+p_pneumo <- cowplot::plot_grid(
+    # XVI
+    tile_ranges(gr_XVI, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_fwd_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#ee766f') |> ggrastr::rasterize(dpi = 1000)+ 
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA fwd @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    tile_ranges(gr_XVI, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_rev_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2eb7be') |> ggrastr::rasterize(dpi = 1000)+ 
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA rev @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    slide_ranges(gr_XVI, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = GC_skew_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC skew @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') + 
+        labs(x = NULL), 
+    slide_ranges(gr_XVI, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = AT_skew_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('AT skew @ {as.character(gr_XVI)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') + 
+        labs(x = NULL), 
+
+
+    # Myco
+    tile_ranges(gr_bact, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_fwd_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#ee766f') |> ggrastr::rasterize(dpi = 1000)+ 
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA fwd @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    tile_ranges(gr_bact, width = BINWIDTH) |> 
+        binnedAverage(bins = _, numvar = rna_rev_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#2eb7be') |> ggrastr::rasterize(dpi = 1000)+ 
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('RNA rev @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 150)) + 
+        labs(x = NULL), 
+    slide_ranges(gr_bact, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = GC_skew_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('GC skew @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') +
+        labs(x = NULL), 
+    slide_ranges(gr_bact, width = 3000, step = 50) |> 
+        binnedAverage(bins = _, numvar = AT_skew_pneumo, varname = 'score') |> 
+        as_tibble() |>
+        mutate(coord = start + (end-start)/2, score = score) |>
+        ggplot(aes(x = coord, y = score)) + 
+        geom_line() |> ggrastr::rasterize(dpi = 1000) +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(glue::glue('AT skew @ {as.character(gr_bact)}')) + 
+        coord_cartesian(expand = FALSE, ylim = c(-3, 3)) + 
+        geom_hline(yintercept = 0, colour = 'red', linetype = 'dashed') +
+        labs(x = NULL), 
+
+    ncol = 2, byrow = FALSE
+)
+```
+
+### Panel 3b 
+
+```{r}
+## --- Genes
+genes <- list(
+    'genes_S288c' = rtracklayer::import('~/genomes/S288c/S288c.gtf') %>% filter(type == 'gene', gene_biotype == 'protein_coding') %>% sort() %>% mutate(class = 'genebody'),
+    'genes_W303_Mmmyco' = rtracklayer::import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3') %>% filter(type == 'gene') %>% sort() %>% mutate(class = 'genebody'),
+    'genes_S288c_Mpneumo' = rtracklayer::import('~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf') %>% filter(type == 'gene', gene_biotype == 'protein_coding') %>% sort() %>% mutate(class = 'genebody')
+)
+
+## --- Tracks
+tracks <- list(
+    # ----------- WT 
+    'MNase_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/MNase/tracks/SRR3193263/SRR3193263^mapped_S288c^filtered^130-200^BADI46.130-200.CPM.bw', as = 'Rle'), 
+    'PolII_WT' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH244/CH244^mapped_S288c^CIJXLY.vs-CH246.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH245/CH245^mapped_S288c^3RQ3EM.vs-CH247.bw', as = 'Rle') ) / 2,
+    'Scc1_WT' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH224/CH224^unmapped_CBS138^mapped_S288c^YMT7BP.vs-CH225.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/CH226/CH226^unmapped_CBS138^mapped_S288c^MTY44Z.vs-CH227.bw', as = 'Rle') ) / 2, 
+    'H3_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/SRR1517820/SRR1517820^mapped_S288c^VG9IL4.CPM.bw', as = 'Rle'),
+    'H2A_WT' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/tracks/SRR1517818/SRR1517818^mapped_S288c^FFF5YV.CPM.bw', as = 'Rle'),
+    'RNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.unstranded.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'fwdRNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.fwd.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'revRNA_WT' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045244/SRR2045244^mapped_S288c^KEYTQL.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/RNA/tracks/SRR2045245/SRR2045245^mapped_S288c^AF9M8B.rev.CPM.bw', as = 'Rle')
+    ) / 2, 
+    'GC_WT' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/S288c/S288c.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')),
+
+    # ----------- W303 + Mmmyco 
+    'MNase_W303_Mmmyco' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/MNase/tracks/CH265/CH265^mapped_W303_Mmmyco^filtered^130-200^ZXAMER.130-200.CPM.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/MNase/tracks/CH266/CH266^mapped_W303_Mmmyco^filtered^130-200^ZG3T8W.130-200.CPM.bw', as = 'Rle') ) / 2,
+    'PolII_W303_Mmmyco' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH51/CH51^mapped_W303_Mmmyco^Y9CC89.vs-CH54.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH102/CH102^mapped_W303_Mmmyco^2FVQO3.vs-CH105.bw', as = 'Rle') ) / 2,
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH35/CH35^unmapped_CBS138^mapped_W303_Mmmyco^DTAKMF.vs-CH38.bw', as = 'Rle'), 
+    'H3_W303_Mmmyco' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH406/CH406^mapped_W303_Mmmyco^KDTEGO.vs-CH408.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH407/CH407^mapped_W303_Mmmyco^8S1VTX.vs-CH409.bw', as = 'Rle')
+    ) / 2,
+    'H2A_W303_Mmmyco' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH404/CH404^mapped_W303_Mmmyco^XOL0HV.vs-CH408.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH405/CH405^mapped_W303_Mmmyco^CXNJIS.vs-CH409.bw', as = 'Rle')
+    ) / 2,
+    'Sir3_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/tracks/CH380/CH380^mapped_W303_Mmmyco^D51AZ0.CPM.bw', as = 'Rle'), 
+    'RNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.unstranded.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'fwdRNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.fwd.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'revRNA_W303_Mmmyco' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB4/AB4^mapped_W303_Mmmyco^LWYOI3.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB5/AB5^mapped_W303_Mmmyco^SB37WP.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/RNA/tracks/AB6/AB6^mapped_W303_Mmmyco^0L0CQ5.rev.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'GC_W303_Mmmyco' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')),
+
+    # ----------- S288c + Mmpneumo  
+    'MNase_S288c_Mpneumo' = ( rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/MNase/tracks/CH205/CH205^mapped_S288c_Mpneumo^filtered^130-200^X8C2LM.130-200.CPM.bw', as = 'Rle') + rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/MNase/tracks/CH206/CH206^mapped_S288c_Mpneumo^filtered^130-200^HS5L1A.130-200.CPM.bw', as = 'Rle') ) / 2,
+    'PolII_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH154/CH154^mapped_S288c_Mpneumo^598366.vs-CH155.bw', as = 'Rle'),
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH219/CH219^unmapped_CBS138^mapped_S288c_Mpneumo^EHEJFT.vs-CH220.bw', as = 'Rle'), 
+    'H3_S288c_Mpneumo' = (
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH157/CH157^mapped_S288c_Mpneumo^MGHI86.vs-CH159.bw', as = 'Rle') + 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH367/CH367^mapped_S288c_Mpneumo^PCPOLZ.vs-CH371.bw', as = 'Rle')
+    ) / 2,
+    'H2A_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/tracks/CH366/CH366^mapped_S288c_Mpneumo^S0ZHT4.vs-CH370.bw', as = 'Rle'), 
+    'RNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.unstranded.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.unstranded.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'fwdRNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.fwd.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.fwd.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'revRNA_S288c_Mpneumo' = ( 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo1_nvq/CHR_Pneumo1_nvq^mapped_S288c_Mpneumo^3FV1UY.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo2_nvq/CHR_Pneumo2_nvq^mapped_S288c_Mpneumo^INOTQD.rev.CPM.bw', as = 'Rle') +
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/RNA/tracks/CHR_Pneumo3_nvq/CHR_Pneumo3_nvq^mapped_S288c_Mpneumo^5JD4NC.rev.CPM.bw', as = 'Rle')
+    ) / 3, 
+    'GC_S288c_Mpneumo' = lengths(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')), 
+    
+    # ----------- W303_chrXVI-Mmmyco_inv870kb
+    'PolII_W303_chrXVI-Mmmyco_inv870kb' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/ChIP/tracks/LM80/LM80^mapped_W303_chrXVI-Mmmyco_inv870kb^5BSLFH.vs-LM81.bw', as = 'Rle'),
+    'Scc1_W303_chrXVI-Mmmyco_inv870kb' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_inv870kb/ChIP/tracks/LM65/LM65^unmapped_CBS138^mapped_W303_chrXVI-Mmmyco_inv870kb^WUXR6F.vs-LM64.bw', as = 'Rle'), 
+    'GC_W303_chrXVI-Mmmyco_inv870kb' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_inv870kb/W303_chrXVI-Mmmyco_inv870kb.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', '')), 
+
+    # ----------- W303_chrXVI-Mmmyco_dbl-inv
+    'PolII_W303_chrXVI-Mmmyco_dbl-inv' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/ChIP/tracks/LM82/LM82^mapped_W303_chrXVI-Mmmyco_dbl-inv^HBN3NY.vs-LM83.bw', as = 'Rle'),
+    'Scc1_W303_chrXVI-Mmmyco_dbl-inv' = rtracklayer::import('~/Projects/20220510_Lea_mapping-HiC-Scc1/data/W303_chrXVI-Mmmyco_dbl-inv/ChIP/tracks/LM67/LM67^unmapped_CBS138^mapped_W303_chrXVI-Mmmyco_dbl-inv^TXX0ZC.vs-LM66.bw', as = 'Rle'), 
+    'GC_W303_chrXVI-Mmmyco_dbl-inv' = lengths(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa'))) %>% 
+        tileGenome(tilewidth = 1) %>% 
+        unlist() %>% 
+        mutate(seq = Biostrings::readDNAStringSet('~/genomes/W303_chrXVI-Mmmyco_dbl-inv/W303_chrXVI-Mmmyco_dbl-inv.fa')[.]) %>% 
+        mutate(GC = Biostrings::letterFrequency(seq, "GC", as.prob = TRUE)) %>% 
+        group_by(seqnames) %>% 
+        mutate(GC_ave = slider::slide_mean(GC.G.C, before = 50/2, after = 50/2)) %>% 
+        coverage(weight = 'GC_ave') %>% 
+        setNames(str_replace(names(.), ' .*', ''))
+
+)
+## --- Peaks
+peaks <- list(
+    'Scc1_S288c' = c(
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH224/CH224_vs-CH225_genome-S288c_YMT7BP_peaks.narrowPeak') %>% mutate(rep = 'rep1'), 
+        rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH226/CH226_vs-CH227_genome-S288c_MTY44Z_peaks.narrowPeak') %>% mutate(rep = 'rep2')
+    ) %>% filter(qValue > 10) %>% reduce_ranges(), 
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/peaks/CH35/CH35_vs-CH38_genome-W303_Mmmyco_DTAKMF_peaks.narrowPeak') %>% filter(qValue > 10) %>% reduce_ranges(), 
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/peaks/CH219/CH219_vs-CH220_genome-S288c_Mpneumo_EHEJFT_peaks.narrowPeak') %>% filter(qValue > 10) 
+)
+## --- Summits
+summits <- list(
+    'Scc1_S288c' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/WT/ChIP/peaks/CH224/CH224_vs-CH225_genome-S288c_YMT7BP_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_S288c']]),
+    'Scc1_W303_Mmmyco' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/W303_Mmmyco/ChIP/peaks/CH35/CH35_vs-CH38_genome-W303_Mmmyco_DTAKMF_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_W303_Mmmyco']]),
+    'Scc1_S288c_Mpneumo' = rtracklayer::import('~/Projects/20220309_Christophe_GC-paper/data/S288c_Mpneumo/ChIP/peaks/CH219/CH219_vs-CH220_genome-S288c_Mpneumo_EHEJFT_summits.bed') %>% subsetByOverlaps(peaks[['Scc1_S288c_Mpneumo']])
+)
+
+
+
+
+bin = 100
+width = 60000
+p <- cowplot::plot_grid(
+    tibble(
+        coord = 35000:(35000 + width - 1), 
+        score_pos = as.vector(tracks[['fwdRNA_WT']][['VI']][35000:(35000 + width - 1)]),
+        score_neg = -as.vector(tracks[['revRNA_WT']][['VI']][35000:(35000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(35000, (35000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score_pos = mean(score_pos), score_neg = mean(score_neg)) %>% 
+        ggplot() + 
+        geom_area(aes(x = coord, y = score_pos), col = NA, fill = '#ee766f') +
+        geom_area(aes(x = coord, y = score_neg), col = NA, fill = '#2eb7be') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('RNA-seq @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(-45, 45)) + 
+        labs(x = NULL), 
+    genes[['genes_S288c']][genes[['genes_S288c']] %over% GRanges(glue::glue('VI:35000-{(35000 + width - 1)}'))] %>% 
+        as_tibble() %>% 
+        mutate(
+            xstart = start, xend = end, 
+            start = ifelse(strand == '+', xstart, xend), 
+            end = ifelse(strand == '+', xend, xstart), 
+        ) %>%
+        ggplot(aes(x = start, xend = end, y = 1, yend = 1, col = strand, fill = strand)) + 
+        geom_segment() +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(NA) + 
+        coord_cartesian(expand = FALSE) + 
+        labs(x = NULL), 
+   tibble(
+        coord = 35000:(35000 + width - 1), 
+        score = as.vector(tracks[['Scc1_WT']][['VI']][35000:(35000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(35000, (35000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score = mean(score)) %>% 
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#c40e0e') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('Scc1 @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)) + 
+        labs(x = NULL),
+    tibble(
+        coord = 680000:(680000 + width - 1), 
+        score_pos = as.vector(tracks[['fwdRNA_W303_Mmmyco']][['Mmmyco']][680000:(680000 + width - 1)]),
+        score_neg = -as.vector(tracks[['revRNA_W303_Mmmyco']][['Mmmyco']][680000:(680000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(680000, (680000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score_pos = mean(score_pos), score_neg = mean(score_neg)) %>% 
+        ggplot() + 
+        geom_area(aes(x = coord, y = score_pos), col = NA, fill = '#ee766f') +
+        geom_area(aes(x = coord, y = score_neg), col = NA, fill = '#2eb7be') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('RNA-seq @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(-45, 45)) + 
+        labs(x = NULL), 
+    genes[['genes_W303_Mmmyco']][genes[['genes_W303_Mmmyco']] %over% GRanges(glue::glue('Mmmyco:680000-{(680000 + width - 1)}'))] %>% 
+        as_tibble() %>% 
+        mutate(
+            xstart = start, xend = end, 
+            start = ifelse(strand == '+', xstart, xend), 
+            end = ifelse(strand == '+', xend, xstart), 
+        ) %>%
+        ggplot(aes(x = start, xend = end, y = 1, yend = 1, col = strand, fill = strand)) + 
+        geom_segment() +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(NA) + 
+        coord_cartesian(expand = FALSE) + 
+        labs(x = NULL), 
+    tibble(
+        coord = 680000:(680000 + width - 1), 
+        score = as.vector(tracks[['Scc1_W303_Mmmyco']][['Mmmyco']][680000:(680000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(680000, (680000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score = mean(score)) %>% 
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#c40e0e') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('Scc1 @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)) + 
+        labs(x = NULL),
+    tibble(
+        coord = 150000:(150000 + width - 1), 
+        score_pos = as.vector(tracks[['fwdRNA_S288c_Mpneumo']][['Mpneumo']][150000:(150000 + width - 1)]),
+        score_neg = -as.vector(tracks[['revRNA_S288c_Mpneumo']][['Mpneumo']][150000:(150000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(150000, (150000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score_pos = mean(score_pos), score_neg = mean(score_neg)) %>% 
+        ggplot() + 
+        geom_area(aes(x = coord, y = score_pos), col = NA, fill = '#ee766f') +
+        geom_area(aes(x = coord, y = score_neg), col = NA, fill = '#2eb7be') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('RNA-seq @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(-45, 45)) + 
+        labs(x = NULL), 
+    genes[['genes_S288c_Mpneumo']][genes[['genes_S288c_Mpneumo']] %over% GRanges(glue::glue('Mpneumo:150000-{(150000 + width - 1)}'))] %>% 
+        as_tibble() %>% 
+        mutate(
+            xstart = start, xend = end, 
+            start = ifelse(strand == '+', xstart, xend), 
+            end = ifelse(strand == '+', xend, xstart), 
+        ) %>%
+        ggplot(aes(x = start, xend = end, y = 1, yend = 1, col = strand, fill = strand)) + 
+        geom_segment() +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle(NA) + 
+        coord_cartesian(expand = FALSE) + 
+        labs(x = NULL), 
+    tibble(
+        coord = 150000:(150000 + width - 1), 
+        score = as.vector(tracks[['Scc1_S288c_Mpneumo']][['Mpneumo']][150000:(150000 + width - 1)])
+    ) %>% 
+        group_by(coord = rep(seq(150000, (150000 + width - 1), by = bin), each = bin)) %>% 
+        summarize(score = mean(score)) %>% 
+        ggplot(aes(x = coord, y = score)) + 
+        geom_area(col = NA, fill = '#c40e0e') +
+        periodicDNA::theme_ggplot2(grid = FALSE) + 
+        ggtitle('Scc1 @ chrVI (S288c)') + 
+        coord_cartesian(expand = FALSE, ylim = c(0, 6)) + 
+        labs(x = NULL),
+    byrow = FALSE, 
+    nrow = 3,
+    align = 'hv', axis = 'tblr'
+)
+```
+
+### Panel 3c
+
+```{r}
+df <- rbind(
+    tibble(
+        group = 'yeast',
+        gene = genes[['genes_S288c']]$gene_id,
+        strand = as.vector(strand(genes[['genes_S288c']])),
+        width = width(genes[['genes_S288c']]), 
+        fwd_score = as.data.frame(tracks[['fwdRNA_WT']][genes[['genes_S288c']]]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov),
+        rev_score = as.data.frame(tracks[['revRNA_WT']][genes[['genes_S288c']]]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov)
+    ), 
+    tibble(
+        group = 'pneumo',
+        gene = genes[['genes_S288c_Mpneumo']][seqnames(genes[['genes_S288c_Mpneumo']]) == 'Mpneumo']$gene_id,
+        strand = as.vector(strand(genes[['genes_S288c_Mpneumo']][seqnames(genes[['genes_S288c_Mpneumo']]) == 'Mpneumo'])),
+        width = width(genes[['genes_S288c_Mpneumo']][seqnames(genes[['genes_S288c_Mpneumo']]) == 'Mpneumo']), 
+        fwd_score = as.data.frame(tracks[['fwdRNA_S288c_Mpneumo']][genes[['genes_S288c_Mpneumo']][seqnames(genes[['genes_S288c_Mpneumo']]) == 'Mpneumo']]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov),
+        rev_score = as.data.frame(tracks[['revRNA_S288c_Mpneumo']][genes[['genes_S288c_Mpneumo']][seqnames(genes[['genes_S288c_Mpneumo']]) == 'Mpneumo']]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov)
+    ), 
+    tibble(
+        group = 'myco',
+        gene = genes[['genes_W303_Mmmyco']][seqnames(genes[['genes_W303_Mmmyco']]) == 'Mmmyco']$gene_id,
+        strand = as.vector(strand(genes[['genes_W303_Mmmyco']][seqnames(genes[['genes_W303_Mmmyco']]) == 'Mmmyco'])),
+        width = width(genes[['genes_W303_Mmmyco']][seqnames(genes[['genes_W303_Mmmyco']]) == 'Mmmyco']), 
+        fwd_score = as.data.frame(tracks[['fwdRNA_W303_Mmmyco']][genes[['genes_W303_Mmmyco']][seqnames(genes[['genes_W303_Mmmyco']]) == 'Mmmyco']]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov),
+        rev_score = as.data.frame(tracks[['revRNA_W303_Mmmyco']][genes[['genes_W303_Mmmyco']][seqnames(genes[['genes_W303_Mmmyco']]) == 'Mmmyco']]) |> as_tibble() |> group_by(group, group_name) |> summarize(cov = mean(value)) |> pull(cov)
+    )
+) |> mutate(sense = ifelse(strand == '+', fwd_score, rev_score)) |> 
+    mutate(strand = factor(strand, c('+', '-'))) |>
+    mutate(antisense = ifelse(strand == '+', rev_score, fwd_score)) |> 
+    # pivot_longer(c(sense, antisense), names_to = 'orientation', values_to = 'score') |> 
+    # mutate(orientation = factor(orientation, c('sense', 'antisense')))
+    pivot_longer(c(fwd_score, rev_score), names_to = 'orientation', values_to = 'score') |> 
+    mutate(orientation = factor(orientation, c('fwd_score', 'rev_score'))) |> 
+    mutate(group = factor(group, c('yeast', 'pneumo', 'myco'))) 
+p <- ggplot(df, aes(x = strand, y = score/width*1000, fill = orientation)) + 
+    geom_violin(position = position_dodge(0.9), ) + 
+    geom_boxplot(position = position_dodge(0.9), width = 0.1, outlier.shape = NA) + 
+    facet_grid(~ group) + 
+    scale_y_log10() +
+    labs(y = 'Stranded RNA-seq cov. / 1000nt') +
+    annotation_logticks(sides = 'l') + 
+    theme_bw()
+```
+
+## Figure S4
+
+### Panel S4a
+
+```{r}
+intergenes <- sapply(genes, function(x) {
+    xx <- sort(x)
+    strand(xx) <- '*'
+    seqlengths(xx) <- group_by(xx, seqnames) %>% mutate(m = max(start)) %>% '$'('m') %>% unique()
+    x2 <- plyranges::complement_ranges(xx)
+    seqlengths(x2) <- NA
+    x2$class <- 'intergenic'
+    x2
+}, simplify = FALSE)
+df <- rbind(
+    tracks[['RNA_W303_Mmmyco']][c(genes[['genes_W303_Mmmyco']], intergenes[['genes_W303_Mmmyco']])] %>% 
+        as.data.frame() %>% 
+        mutate(class = factor(as.data.frame(c(genes[['genes_W303_Mmmyco']], intergenes[['genes_W303_Mmmyco']]))$class[.$group], c('genebody', 'intergenic'))) %>%
+        group_by(group_name, class, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        mutate(type = ifelse(group_name == 'Mmmyco', 'Mmmyco', 'Yeast')) %>%
+        mutate(bg = 'W303_Mmmyco') %>%
+        ungroup(),
+    tracks[['RNA_S288c_Mpneumo']][c(genes[['genes_S288c_Mpneumo']], intergenes[['genes_S288c_Mpneumo']])] %>% 
+        as.data.frame() %>% 
+        mutate(class = factor(c(genes[['genes_S288c_Mpneumo']], intergenes[['genes_S288c_Mpneumo']])$class[.$group], c('genebody', 'intergenic'))) %>%
+        group_by(group_name, class, group) %>% 
+        summarize(coverage = mean(value)) %>% 
+        mutate(type = ifelse(group_name == 'Mpneumo', 'Mpneumo', 'Yeast')) %>%
+        mutate(bg = 'S288c_Mpneumo') %>%
+        ungroup() 
+) %>% mutate(type = factor(type, c('Yeast', 'S288c_Mpneumo', 'W303_Mmmyco')))
+p <- ggplot(df, aes(x = type, y = coverage, fill = class)) + 
+    geom_violin(scale = 'width') + 
+    geom_boxplot(outlier.shape = NA, col = 'black', width = 0.1) + 
+    scale_y_log10() + 
+    facet_wrap(~bg)
+```
+
+### Panel S4b 
+
+```{r}
+p <- cowplot::plot_grid(
+    periodicDNA::plotAggregateCoverage(
+        list('Fwd' = tracks[['fwdRNA_S288c_Mpneumo']], 'Rev' = tracks[['revRNA_S288c_Mpneumo']]), 
+        list(
+            'Yeast +' = genes[['genes_S288c_Mpneumo']] %>% filter(strand == '+', seqnames != 'Mpneumo') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges"),
+            'Yeast -' = genes[['genes_S288c_Mpneumo']] %>% filter(strand == '-', seqnames != 'Mpneumo') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+        ),
+        bin = 10, 
+        free_scales = TRUE, 
+        split_by_track = FALSE
+    ) + labs(x = 'TSS', y = 'RNA-seq cov.') + scale_colour_manual(values = c('#ee766f', '#2eb7be')) + scale_fill_manual(values = c('#ee766f', '#2eb7be')) + coord_cartesian(ylim = c(0, 50)), 
+    periodicDNA::plotAggregateCoverage(
+        list('Fwd' = tracks[['fwdRNA_S288c_Mpneumo']], 'Rev' = tracks[['revRNA_S288c_Mpneumo']]), 
+        list(
+            'Mpneumo +' = {
+                # genes[['genes_S288c_Mpneumo']] %>% filter(strand == '+', seqnames == 'Mpneumo') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                gr <- genes[['genes_S288c_Mpneumo']] %>% filter(seqnames == 'Mpneumo') %>% sort(ignore.strand = TRUE)
+                x <- gr %>% mutate(id = 1:n()) %>% as_tibble() %>% select(strand, id) %>% mutate(strand_gene_left = lag(strand), strand_gene_right = lead(strand))
+                xx <- rle(as.vector(x$strand))
+                gr2 <- gr[x %>% mutate(is_first = case_when({strand == '+' & strand_gene_left == '-'} | {strand == '-' & strand_gene_right == '+'} ~ TRUE, TRUE ~ FALSE)) %>% pull(is_first) %>% which(),]
+                gr2[strand(gr2) == '+'] %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                # gr2
+            },
+            'Mpneumo -' = {
+                # genes[['genes_S288c_Mpneumo']] %>% filter(strand == '-', seqnames == 'Mpneumo') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                gr <- genes[['genes_S288c_Mpneumo']] %>% filter(seqnames == 'Mpneumo') %>% sort(ignore.strand = TRUE)
+                x <- gr %>% mutate(id = 1:n()) %>% as_tibble() %>% select(strand, id) %>% mutate(strand_gene_left = lag(strand), strand_gene_right = lead(strand))
+                xx <- rle(as.vector(x$strand))
+                gr2 <- gr[x %>% mutate(is_first = case_when({strand == '+' & strand_gene_left == '-'} | {strand == '-' & strand_gene_right == '+'} ~ TRUE, TRUE ~ FALSE)) %>% pull(is_first) %>% which(),]
+                gr2[strand(gr2) == '-'] %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                # gr2
+            }
+        ),
+        bin = 10, 
+        free_scales = TRUE, 
+        split_by_track = FALSE
+    ) + labs(x = 'TSS', y = 'RNA-seq cov.') + scale_colour_manual(values = c('#ee766f', '#2eb7be')) + scale_fill_manual(values = c('#ee766f', '#2eb7be')) + coord_cartesian(ylim = c(0, 50)), 
+    periodicDNA::plotAggregateCoverage(
+        list('Fwd' = tracks[['fwdRNA_W303_Mmmyco']], 'Rev' = tracks[['revRNA_W303_Mmmyco']]), 
+        list(
+            'Mmmyco +' = {
+                # genes[['genes_W303_Mmmyco']] %>% filter(strand == '+', seqnames == 'Mmmyco') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                gr <- genes[['genes_W303_Mmmyco']] %>% filter(seqnames == 'Mmmyco') %>% sort(ignore.strand = TRUE)
+                x <- gr %>% mutate(id = 1:n()) %>% as_tibble() %>% select(strand, id) %>% mutate(strand_gene_left = lag(strand), strand_gene_right = lead(strand))
+                xx <- rle(as.vector(x$strand))
+                gr2 <- gr[x %>% mutate(is_first = case_when({strand == '+' & strand_gene_left == '-'} | {strand == '-' & strand_gene_right == '+'} ~ TRUE, TRUE ~ FALSE)) %>% pull(is_first) %>% which(),]
+                gr2[strand(gr2) == '+'] %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+            },
+            'Mmmyco -' = {
+                # genes[['genes_W303_Mmmyco']] %>% filter(strand == '-', seqnames == 'Mmmyco') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+                gr <- genes[['genes_W303_Mmmyco']] %>% filter(seqnames == 'Mmmyco') %>% sort(ignore.strand = TRUE)
+                x <- gr %>% mutate(id = 1:n()) %>% as_tibble() %>% select(strand, id) %>% mutate(strand_gene_left = lag(strand), strand_gene_right = lead(strand))
+                xx <- rle(as.vector(x$strand))
+                gr2 <- gr[x %>% mutate(is_first = case_when({strand == '+' & strand_gene_left == '-'} | {strand == '-' & strand_gene_right == '+'} ~ TRUE, TRUE ~ FALSE)) %>% pull(is_first) %>% which(),]
+                gr2[strand(gr2) == '-'] %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(1000) %>% as("GRanges")
+            }
+        ),
+        bin = 10, 
+        free_scales = TRUE, 
+        split_by_track = FALSE
+    ) + labs(x = 'TSS', y = 'RNA-seq cov.') + scale_colour_manual(values = c('#ee766f', '#2eb7be')) + scale_fill_manual(values = c('#ee766f', '#2eb7be')) + coord_cartesian(ylim = c(0, 50)), 
+    ncol = 1
+)
+```
+
+### Panel S4c 
+
+```{r}
+gr2 <- {
+    gr <- genes[['genes_S288c_Mpneumo']] %>% filter(seqnames == 'Mpneumo') %>% sort(ignore.strand = TRUE)
+    x <- gr %>% mutate(id = 1:n()) %>% as_tibble() %>% select(strand, id) %>% mutate(strand_gene_left = lag(strand), strand_gene_right = lead(strand))
+    xx <- rle(as.vector(x$strand))
+    gr2 <- gr[x %>% mutate(is_first = case_when({strand == '+' & strand_gene_left == '-'} | {strand == '-' & strand_gene_right == '+'} ~ TRUE, TRUE ~ FALSE)) %>% pull(is_first) %>% which(),]
+    gr2 %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(2000) %>% as("GRanges")
+}
+p <- periodicDNA::plotAggregateCoverage(
+    tracks[['PolII_S288c_Mpneumo']], 
+    list(
+        'Yeast' = genes[['genes_S288c_Mpneumo']] %>% filter(seqnames != 'Mpneumo') %>% anchor_5p() %>% resize(1) %>% anchor_center() %>% stretch(2000) %>% as("GRanges"),
+        'Mpneumo' = gr2
+    ),
+    bin = 50, 
+    free_scales = TRUE, 
+    split_by_track = FALSE
+) + labs(x = 'TSS', y = 'PolII cov.', title = 'Yeast') + scale_colour_manual(values = c('#696969', '#a3195b')) + scale_fill_manual(values = c('#696969', '#a3195b'))
+
+```
+
+### Panel S4d 
+
+```{r}
+BINSIZE = 100
+TELO_LENGTH = 3000
+g <- lengths(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>%   
+        purrr::set_names(names(Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')) %>% str_replace(' .*', '')) %>% 
+        tileGenome(tilewidth = BINSIZE) %>% 
+        unlist() 
+g$max_length <- seqlengths(g)[as.vector(seqnames(g))]
+g$type <- ifelse(start(g) < TELO_LENGTH, 'telomere', ifelse(
+    start(g) > g$max_length - TELO_LENGTH, 'telomere', 'arm'
+))
+g$group <- factor(ifelse(seqnames(g) == 'Mmmyco', 'Mmyco', 'Yeast'), c('Yeast', 'Mmyco'))
+df <- tibble(
+    as.data.frame(g), 
+    coverage = mean(tracks[['Sir3_W303_Mmmyco']][g])
+)
+p <- ggplot(df, aes(x = group, y = coverage, fill = type)) + 
+    geom_violin(position = position_dodge(0.9), scale = 'width') + 
+    geom_boxplot(position = position_dodge(0.9), width = 0.1, outlier.shape = NA) + 
+    labs(y = 'Sir3 coverage / 100 bp') +
+    scale_y_log10() +
+    annotation_logticks(sides = 'l') + 
+    theme_bw() + 
+    theme(legend.position = 'bottom')
+```
+
+### Panel S4e
+
+```{r}
+myco_seq <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+myco_genome <- GRanges(paste0(names(myco_seq), ':1-', lengths(myco_seq)))
+seqlengths(myco_genome) <- lengths(myco_seq)
+pneumo_seq <- Biostrings::readDNAStringSet('~/genomes/S288c_Mpneumo/S288c_Mpneumo.fa')
+names(pneumo_seq) <- str_replace(names(pneumo_seq), ' .*', '')
+pneumo_genome <- GRanges(paste0(names(pneumo_seq), ':1-', lengths(pneumo_seq)))
+seqlengths(pneumo_genome) <- lengths(pneumo_seq)
+genes <- list(
+    'genes_W303_Mmmyco' = rtracklayer::import('~/genomes/W303_Mmmyco/W303_Mmmyco.gff3') %>% filter(type == 'gene') %>% sort() %>% mutate(class = 'genebody'),
+    'genes_S288c_Mpneumo' = rtracklayer::import('~/genomes/S288c_Mpneumo/S288c_Mpneumo.gtf') %>% filter(type == 'gene', gene_biotype == 'protein_coding') %>% sort() %>% mutate(class = 'genebody')
+)
+
+BINWIDTH = 200
+STEP = 10
+## Myco
+gr <- tile_ranges(myco_genome, width = STEP)
+gr$seq <- getSeq(myco_seq, names = gr)
+gr$nG <- letterFrequency(gr$seq, letters = 'G')
+gr$nC <- letterFrequency(gr$seq, letters = 'C')
+gr$nA <- letterFrequency(gr$seq, letters = 'A')
+gr$nT <- letterFrequency(gr$seq, letters = 'T')
+gr$GC <- (gr$nG + gr$nC) / STEP
+gr$GC_skew <- (gr$nG - gr$nC) / (gr$nG + gr$nC)
+gr$AT_skew <- (gr$nA - gr$nT) / (gr$nA + gr$nT)
+
+g <- genes[['genes_W303_Mmmyco']]
+g$GC <- mean(coverage(gr, weight = gr$GC)[g])
+g$AT_skew <- mean(coverage(gr, weight = gr$AT_skew)[g])
+g$GC_skew <- mean(coverage(gr, weight = gr$GC_skew)[g])
+df <- as_tibble(g) |> 
+    select(seqnames, strand, GC, AT_skew, GC_skew) |> 
+    pivot_longer(any_of(c('GC', 'AT_skew', 'GC_skew')), names_to = 'base', values_to = 'skew') |> 
+    filter(seqnames != 'Mito') |> 
+    filter(seqnames %in% c('chrXVI', 'Mmmyco'))
+p <- ggplot(df, aes(x = seqnames, y = skew, fill = strand)) + 
+    geom_boxplot()+ 
+    facet_wrap(~ base, scales = 'free') + 
+    labs(fill = 'gene orientation') + 
+    ylim(c(-0.6, 0.6))
+
+## Pneumo
+gr <- tile_ranges(pneumo_genome, width = STEP)
+gr$seq <- getSeq(pneumo_seq, names = gr)
+gr$nG <- letterFrequency(gr$seq, letters = 'G')
+gr$nC <- letterFrequency(gr$seq, letters = 'C')
+gr$nA <- letterFrequency(gr$seq, letters = 'A')
+gr$nT <- letterFrequency(gr$seq, letters = 'T')
+gr$GC <- (gr$nG + gr$nC) / STEP
+gr$GC_skew <- (gr$nG - gr$nC) / (gr$nG + gr$nC)
+gr$AT_skew <- (gr$nA - gr$nT) / (gr$nA + gr$nT)
+
+g <- genes[['genes_S288c_Mpneumo']] 
+g$GC <- mean(coverage(gr, weight = gr$GC)[g])
+g$AT_skew <- mean(coverage(gr, weight = gr$AT_skew)[g])
+g$GC_skew <- mean(coverage(gr, weight = gr$GC_skew)[g])
+df <- as_tibble(g) |> 
+    select(seqnames, strand, GC, AT_skew, GC_skew) |> 
+    pivot_longer(any_of(c('GC', 'AT_skew', 'GC_skew')), names_to = 'base', values_to = 'skew') |> 
+    filter(seqnames != 'Mito') |> 
+    filter(seqnames %in% c('XVI', 'Mpneumo'))
+p <- ggplot(df, aes(x = seqnames, y = skew, fill = strand)) + 
+    geom_boxplot()+ 
+    facet_wrap(~ base) + 
+    labs(fill = 'gene orientation') + 
+    ylim(c(-0.6, 0.6))
+```
+

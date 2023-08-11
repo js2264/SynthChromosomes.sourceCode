@@ -1,0 +1,433 @@
+---
+eval: false
+engine: knitr
+---
+
+# Code for generating Figure 2 & Extended Data figures 
+
+## Importing libraries 
+
+```{r}
+library(purrr)
+library(GenomicRanges)
+library(GenomeInfoDb)
+library(Biostrings)
+library(plyranges)
+```
+
+## Figure 2 
+
+### Panel 2a-c
+
+```{r}
+tracks <- list(
+    pneumo_mnase_exp = import('data/Julien/_alex/preds_v1/labels_pneu_nuc.bw', as = 'Rle'), 
+    pneumo_mnase_pred = import('data/Julien/_alex/preds_v1/preds_model_myco_nuc_2_on_S288c_Mpneumo.bw', as = 'Rle'), 
+    pneumo_scc1_exp = import('data/Julien/_alex/preds_v2/labels_pneu_coh_ratio.bw', as = 'Rle'), 
+    pneumo_scc1_pred = import('data/Julien/_alex/preds_v2/preds_model_myco_coh_14_on_S288c_Mpneumo.bw', as = 'Rle'), 
+    pneumo_pol2_exp = import('data/Julien/_alex/preds_v2/labels_pneu_pol_ratio.bw', as = 'Rle'), 
+    pneumo_pol2_pred = import('data/Julien/_alex/preds_v3/preds_mid_model_myco_pol_17_on_S288c_Mpneumo.bw', as = 'Rle'), 
+
+    myco_mnase_exp = import('data/Julien/_alex/preds_v1/labels_myco_nuc.bw', as = 'Rle'), 
+    myco_mnase_pred = import('data/Julien/_alex/preds_v1/preds_model_myco_nuc_2_on_W303_Mmmyco.bw', as = 'Rle'), 
+    myco_scc1_exp = import('data/Julien/_alex/preds_v2/labels_myco_coh_ratio.bw', as = 'Rle'), 
+    myco_scc1_pred = import('data/Julien/_alex/preds_v2/preds_model_myco_coh_14_on_W303_Mmmyco.bw', as = 'Rle'), 
+    myco_pol2_exp = import('data/Julien/_alex/preds_v2/labels_myco_pol_ratio.bw', as = 'Rle'), 
+    myco_pol2_pred = import('data/Julien/_alex/preds_v3/preds_mid_model_myco_pol_17_on_W303_Mmmyco.bw', as = 'Rle') 
+)
+
+grs <- c(
+    pneumo_mnase_XVI = GRanges('XVI:709000-711000'),
+    pneumo_mnase_pneumo = GRanges('Mpneumo:53800-55800'),
+    pneumo_scc1_XVI = GRanges('XVI:469000-509000'),
+    pneumo_scc1_pneumo = GRanges('Mpneumo:330000-370000'),
+    pneumo_pol2_XVI = GRanges('XVI:395000-470000'),
+    pneumo_pol2_pneumo = GRanges('Mpneumo:730000-805000'),
+
+    myco_mnase_XVI = GRanges('chrXVI:709000-711000'),
+    myco_mnase_myco = GRanges('Mmmyco:574000-576000'),
+    myco_scc1_XVI = GRanges('chrXVI:469000-509000'),
+    myco_scc1_myco = GRanges('Mmmyco:475000-515000'),
+    myco_pol2_XVI = GRanges('chrXVI:395000-470000'),
+    myco_pol2_myco = GRanges('Mmmyco:50000-125000')
+)
+
+p <- cowplot::plot_grid(
+    
+    ## -- Pneumo
+    cowplot::plot_grid(
+
+        # - MNase, Yeast + pneumo
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['pneumo_mnase_XVI']]), end(grs[['pneumo_mnase_XVI']]), 10), 
+                score = mean(tracks[['pneumo_mnase_exp']][tile_ranges(grs[['pneumo_mnase_XVI']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["pneumo_mnase_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_mnase_XVI']]), end(grs[['pneumo_mnase_XVI']]), 10), 
+                score = mean(tracks[['pneumo_mnase_pred']][tile_ranges(grs[['pneumo_mnase_XVI']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["pneumo_mnase_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_mnase_pneumo']]), end(grs[['pneumo_mnase_pneumo']]), 10), 
+                score = mean(tracks[['pneumo_mnase_exp']][tile_ranges(grs[['pneumo_mnase_pneumo']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["pneumo_mnase_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_mnase_pneumo']]), end(grs[['pneumo_mnase_pneumo']]), 10), 
+                score = mean(tracks[['pneumo_mnase_pred']][tile_ranges(grs[['pneumo_mnase_pneumo']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["pneumo_mnase_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            nrow = 2, byrow = FALSE
+        ),
+
+        # - Scc1, Yeast + pneumo
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['pneumo_scc1_XVI']]), end(grs[['pneumo_scc1_XVI']]), 500), 
+                score = mean(tracks[['pneumo_scc1_exp']][tile_ranges(grs[['pneumo_scc1_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["pneumo_scc1_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_scc1_XVI']]), end(grs[['pneumo_scc1_XVI']]), 500), 
+                score = mean(tracks[['pneumo_scc1_pred']][tile_ranges(grs[['pneumo_scc1_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["pneumo_scc1_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_scc1_pneumo']]), end(grs[['pneumo_scc1_pneumo']]), 500), 
+                score = mean(tracks[['pneumo_scc1_exp']][tile_ranges(grs[['pneumo_scc1_pneumo']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["pneumo_scc1_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_scc1_pneumo']]), end(grs[['pneumo_scc1_pneumo']]), 500), 
+                score = mean(tracks[['pneumo_scc1_pred']][tile_ranges(grs[['pneumo_scc1_pneumo']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["pneumo_scc1_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+                nrow = 2, byrow = FALSE
+        ),
+
+        # - Pol2, Yeast + pneumo
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['pneumo_pol2_XVI']]), end(grs[['pneumo_pol2_XVI']]), 500), 
+                score = mean(tracks[['pneumo_pol2_exp']][tile_ranges(grs[['pneumo_pol2_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["pneumo_pol2_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_pol2_XVI']]), end(grs[['pneumo_pol2_XVI']]), 500), 
+                score = mean(tracks[['pneumo_pol2_pred']][tile_ranges(grs[['pneumo_pol2_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["pneumo_pol2_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_pol2_pneumo']]), end(grs[['pneumo_pol2_pneumo']]), 500), 
+                score = mean(tracks[['pneumo_pol2_exp']][tile_ranges(grs[['pneumo_pol2_pneumo']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["pneumo_pol2_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['pneumo_pol2_pneumo']]), end(grs[['pneumo_pol2_pneumo']]), 500), 
+                score = mean(tracks[['pneumo_pol2_pred']][tile_ranges(grs[['pneumo_pol2_pneumo']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["pneumo_pol2_pneumo"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+                nrow = 2, byrow = FALSE
+        ),
+        ncol = 1
+    ), 
+
+    ## -- Myco
+    cowplot::plot_grid(
+
+        # - MNase, Yeast + myco
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['myco_mnase_XVI']]), end(grs[['myco_mnase_XVI']]), 10), 
+                score = mean(tracks[['myco_mnase_exp']][tile_ranges(grs[['myco_mnase_XVI']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["myco_mnase_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_mnase_XVI']]), end(grs[['myco_mnase_XVI']]), 10), 
+                score = mean(tracks[['myco_mnase_pred']][tile_ranges(grs[['myco_mnase_XVI']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["myco_mnase_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_mnase_myco']]), end(grs[['myco_mnase_myco']]), 10), 
+                score = mean(tracks[['myco_mnase_exp']][tile_ranges(grs[['myco_mnase_myco']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["myco_mnase_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_mnase_myco']]), end(grs[['myco_mnase_myco']]), 10), 
+                score = mean(tracks[['myco_mnase_pred']][tile_ranges(grs[['myco_mnase_myco']], 10)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('mnase @ {as.character(grs[["myco_mnase_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            nrow = 2, byrow = FALSE
+        ),
+
+        # - Scc1, Yeast + myco
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['myco_scc1_XVI']]), end(grs[['myco_scc1_XVI']]), 500), 
+                score = mean(tracks[['myco_scc1_exp']][tile_ranges(grs[['myco_scc1_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["myco_scc1_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_scc1_XVI']]), end(grs[['myco_scc1_XVI']]), 500), 
+                score = mean(tracks[['myco_scc1_pred']][tile_ranges(grs[['myco_scc1_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["myco_scc1_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_scc1_myco']]), end(grs[['myco_scc1_myco']]), 500), 
+                score = mean(tracks[['myco_scc1_exp']][tile_ranges(grs[['myco_scc1_myco']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["myco_scc1_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_scc1_myco']]), end(grs[['myco_scc1_myco']]), 500), 
+                score = mean(tracks[['myco_scc1_pred']][tile_ranges(grs[['myco_scc1_myco']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('scc1 @ {as.character(grs[["myco_scc1_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+                nrow = 2, byrow = FALSE
+        ),
+
+        # - Pol2, Yeast + myco
+        cowplot::plot_grid(
+            tibble(
+                coord = seq(start(grs[['myco_pol2_XVI']]), end(grs[['myco_pol2_XVI']]), 500), 
+                score = mean(tracks[['myco_pol2_exp']][tile_ranges(grs[['myco_pol2_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#767A7B') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["myco_pol2_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_pol2_XVI']]), end(grs[['myco_pol2_XVI']]), 500), 
+                score = mean(tracks[['myco_pol2_pred']][tile_ranges(grs[['myco_pol2_XVI']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["myco_pol2_XVI"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_pol2_myco']]), end(grs[['myco_pol2_myco']]), 500), 
+                score = mean(tracks[['myco_pol2_exp']][tile_ranges(grs[['myco_pol2_myco']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#9F1D61') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["myco_pol2_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+            tibble(
+                coord = seq(start(grs[['myco_pol2_myco']]), end(grs[['myco_pol2_myco']]), 500), 
+                score = mean(tracks[['myco_pol2_pred']][tile_ranges(grs[['myco_pol2_myco']], 500)])
+            ) |>
+                ggplot(aes(x = coord, y = score)) + 
+                geom_area(col = NA, fill = '#0e62ff') +
+                periodicDNA::theme_ggplot2(grid = FALSE) + 
+                ggtitle(glue::glue('pol2 @ {as.character(grs[["myco_pol2_myco"]])}')) + 
+                coord_cartesian(expand = FALSE, ylim = c(0, 1)) + 
+                labs(x = NULL), 
+                nrow = 2, byrow = FALSE
+        ),
+        ncol = 1
+    ), 
+
+    ncol = 2
+)
+```
+
+### Panel 2e, Panel S3d
+
+```{r}
+dinuc_overrep <- function(seqs) {
+    obs_nuc <- Biostrings::oligonucleotideFrequency(seqs, width = 1) |> colSums()
+    obs_dinuc <- Biostrings::oligonucleotideFrequency(seqs, width = 2) |> colSums()
+    F_obs_nuc <- obs_nuc / sum(obs_nuc) 
+    F_obs_dinuc <- obs_dinuc / sum(obs_dinuc) 
+    pstars <- map_dfr(names(F_obs_dinuc), function(dinuc) {
+        dinuc_revcomp <- as.character(reverseComplement(DNAString(dinuc)))
+        nuc1 <- substr(dinuc, 1, 1)
+        nuc2 <- substr(dinuc, 2, 2)
+        nuc1_revcomp <- as.character(reverseComplement(DNAString(nuc1)))
+        nuc2_revcomp <- as.character(reverseComplement(DNAString(nuc2)))
+        s = 2 * ( F_obs_dinuc[dinuc] + F_obs_dinuc[dinuc_revcomp] ) / ( (F_obs_nuc[nuc1] + F_obs_nuc[nuc1_revcomp]) * (F_obs_nuc[nuc2] + F_obs_nuc[nuc2_revcomp]) )
+        tibble(
+            dinuc = dinuc, 
+            pstar = s
+        )
+    })
+    pstars
+}
+bg <- rbind(pstars_myco, pstars_pneumo)
+seq <- Biostrings::readDNAStringSet('~/genomes/W303_Mmmyco/W303_Mmmyco.fa')
+gr <- GRanges(names(rles_exp), IRanges(start = 1, width = lengths(rles_exp))) |> tile_ranges(width = 100)
+gr$seq <- c(myco_seq, pneumo_seq)[gr]
+gr$GC <- c(myco_seq, pneumo_seq)[gr] |> letterFrequency(letters = 'GC') |> as_tibble() |> pull('G|C')
+gr$mnase_exp <- binnedAverage(gr, numvar = c(tracks[['myco_mnase_exp']], tracks[['pneumo_mnase_exp']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+gr$mnase_pred <- binnedAverage(gr, numvar = c(tracks[['myco_mnase_pred']], tracks[['pneumo_mnase_pred']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+gr$scc1_exp <- binnedAverage(gr, numvar = c(tracks[['myco_scc1_exp']], tracks[['pneumo_scc1_exp']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+gr$scc1_pred <- binnedAverage(gr, numvar = c(tracks[['myco_scc1_pred']], tracks[['pneumo_scc1_pred']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+gr$pol2_exp <- binnedAverage(gr, numvar = c(tracks[['myco_pol2_exp']], tracks[['pneumo_pol2_exp']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+gr$pol2_pred <- binnedAverage(gr, numvar = c(tracks[['myco_pol2_pred']], tracks[['pneumo_pol2_pred']])[c('Mmmyco', 'Mpneumo', 'chrXVI')], varname = 'score')$score
+df_pstars <- map_dfr(c('mnase', 'scc1', 'pol2'), function(assay) {
+    map_dfr(c('exp', 'pred'), function(type) {
+        map_dfr(c('Mmmyco', 'Mpneumo', 'chrXVI'), function(chr) {
+            subgr <- gr[seqnames(gr) == chr, ]
+            vals <- mcols(subgr)[, paste(assay, type, sep = '_')]
+            q <- quantile(vals, 0.90)
+            subgr <- subgr[vals >= q]
+            dinuc_overrep(subgr$seq) |> mutate(
+                chr = chr, assay = assay, type = type
+            )
+        })
+    })
+}) |> 
+    separate(dinuc, into = c('x', 'y'), remove = FALSE, sep = c(1, 2)) |> 
+    left_join(bg, by = join_by(dinuc, chr)) |> 
+    mutate(ratio = pstar.x / pstar.y)
+p <- df_pstars |> 
+    ggplot(aes(x = x, y, fill = log2(ratio))) + 
+    geom_tile() + 
+    scale_fill_distiller(palette = 'RdBu', direction = -1, limits = c(log2(1 / 1.15), log2(1 * 1.15)), oob = scales::oob_squish) + 
+    facet_grid(assay + chr ~ type) + 
+    coord_fixed() + 
+    theme(panel.background = element_blank(), panel.grid = element_blank() )
+```
+
+## Figure S3
+
+### Panel S3c
+
+```{r}
+pneumo_mnase_pred <- RleList(lapply(tracks[["pneumo_mnase_pred"]], function(x) { Rle(slider::slide_dbl(as.vector(x), \(.x) mean(.x, na.rm = TRUE), .before = 5, .after = 5)) }))
+myco_mnase_pred <- RleList(lapply(tracks[["myco_mnase_pred"]], function(x) { Rle(slider::slide_dbl(as.vector(x), \(.x) mean(.x, na.rm = TRUE), .before = 5, .after = 5)) }))
+df <- rbind(
+    imap_dfr(pneumo_mnase_pred, ~ {
+        .acf <- acf(as.vector(.x), lag.max = 1000, plot = FALSE) 
+        tibble(sample = 'pneumo', seqnames = .y, lag = .acf$lag[, , 1], acf = .acf$acf[, , 1])
+    }), 
+    imap_dfr(myco_mnase_pred, ~ {
+        .acf <- acf(as.vector(.x), lag.max = 1000, plot = FALSE) 
+        tibble(sample = 'myco', seqnames = .y, lag = .acf$lag[, , 1], acf = .acf$acf[, , 1])
+    })
+)
+df <- group_by(df, sample, seqnames) |> mutate(acf_smooth = slider::slide_dbl(acf, mean, .before = 5, .after = 5))
+df <- filter(df, !grepl("_rev", seqnames), seqnames != 'Mito')
+df <- mutate(df, col = case_when(
+    seqnames %in% c('XV', 'chrXV') ~ "XV",
+    seqnames %in% c('XVI','chrXVI') ~ "XVI",
+    seqnames %in% c('Mmmyco') ~ "Mmmyco",
+    seqnames %in% c('Mpneumo') ~ "Mpneumo", 
+    TRUE ~ 'training'
+)) |> mutate(col = factor(col, c('training', "XV", "XVI", "Mmmyco", "Mpneumo")))
+p <- ggplot(df, aes(x = lag, y = acf, group = seqnames, col = col)) + 
+    geom_line() + 
+    labs(col = "Bact. chr.")+
+    xlim(c(0, 1000)) + 
+    geom_vline(xintercept = c(169, 337), linetype = 'solid') + 
+    geom_vline(xintercept = c(177, 345), linetype = 'dashed') + 
+    facet_wrap(~ sample)
+```
+
