@@ -1,8 +1,9 @@
 project:
   type: book
-
+  output-dir: docs
+  
 book:
-  title: Code and Software Submission Checklist for Manuscript `2023-01-00312B`
+  title: Sequence-dependent activity and compartmentalization of foreign DNA in a eukaryotic nucleus
   chapters:
     - index.qmd
     - 00.System-requirements.qmd
